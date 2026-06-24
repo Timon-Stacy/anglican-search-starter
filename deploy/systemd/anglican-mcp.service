@@ -1,0 +1,28 @@
+# Always-on Anglican library MCP server (Streamable HTTP).
+# Install: sudo cp deploy/systemd/anglican-mcp.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now anglican-mcp
+# Edit User= and the paths below if your username isn't "anglican".
+[Unit]
+Description=Anglican library MCP server (Streamable HTTP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=anglican
+WorkingDirectory=/home/anglican/anglican-search-starter
+# Bind to localhost only — Caddy is the public TLS listener in front of this.
+Environment=ANGLICAN_TRANSPORT=http
+Environment=ANGLICAN_HTTP_HOST=127.0.0.1
+Environment=ANGLICAN_HTTP_PORT=8000
+Environment=ANGLICAN_DB=/home/anglican/anglican-search-starter/data/library-serve.db
+Environment=ANGLICAN_INDEX=/home/anglican/anglican-search-starter/data/index.faiss
+Environment=ANGLICAN_RERANKER=cross-encoder/ms-marco-MiniLM-L-6-v2
+Environment=ANGLICAN_RERANK_POOL=30
+Environment=HF_HUB_OFFLINE=1
+ExecStart=/home/anglican/.local/bin/uv run anglican-search-mcp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

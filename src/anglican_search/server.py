@@ -31,7 +31,13 @@ from mcp.server.fastmcp import FastMCP
 from .config import DB_PATH, EMBEDDING_MODEL, INDEX_PATH
 from .search import Filters, Searcher
 
-mcp = FastMCP("anglican-library")
+# Transport: "stdio" (default, for local/SSH use) or "http" (always-on service,
+# Streamable HTTP at http://HOST:PORT/mcp — put TLS + auth in front via a proxy).
+_TRANSPORT = os.environ.get("ANGLICAN_TRANSPORT", "stdio")
+_HTTP_HOST = os.environ.get("ANGLICAN_HTTP_HOST", "127.0.0.1")
+_HTTP_PORT = int(os.environ.get("ANGLICAN_HTTP_PORT", "8000"))
+
+mcp = FastMCP("anglican-library", host=_HTTP_HOST, port=_HTTP_PORT)
 
 _searcher: Searcher | None = None
 
@@ -134,9 +140,14 @@ def _warmup() -> None:
 
 
 def main() -> None:
-    print("[anglican] starting, warming up...", file=sys.stderr, flush=True)
-    _warmup()
-    mcp.run()  # stdio transport by default
+    print(f"[anglican] starting ({_TRANSPORT}), warming up...", file=sys.stderr, flush=True)
+    _warmup()  # load model+index+reranker once, in the main thread
+    if _TRANSPORT == "http":
+        print(f"[anglican] serving on http://{_HTTP_HOST}:{_HTTP_PORT}/mcp",
+              file=sys.stderr, flush=True)
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()  # stdio
 
 
 if __name__ == "__main__":

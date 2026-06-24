@@ -90,11 +90,69 @@ The server warms the models in the main thread at startup (~20–40 s on CPU on
 the first connect of a session), then queries are fast. Use SSH keys so the
 launch is non-interactive.
 
-## Optional: always-on service (lower cold-start)
-If the per-session warmup bothers you, run the server persistently behind an HTTP
-transport (FastMCP `streamable-http`) under `systemd` and point the client at the
-URL through an SSH tunnel or firewall-restricted port. Ask and I'll add the
-`systemd` unit + the HTTP entry point.
+## Always-on HTTPS service (recommended for a real deployment)
+
+Runs the server persistently (models loaded **once**, so queries are always
+fast) over Streamable HTTP, behind Caddy for automatic TLS + bearer-token auth.
+The MCP server binds `127.0.0.1:8000` only; Caddy is the sole public listener.
+
+**Prereqs:** a domain (or a free DDNS like DuckDNS) with an A record pointing at
+the server IP, and ports 80 + 443 open.
+
+> Firewall: open 80/443 in the provider's panel/security list. On **Oracle**,
+> also open them in the instance: `sudo iptables -I INPUT -p tcp -m multiport --dports 80,443 -j ACCEPT` and persist, or use `ufw`. Keep 8000 closed (localhost-only).
+
+### 1. Run the MCP server under systemd
+```bash
+sudo cp deploy/systemd/anglican-mcp.service /etc/systemd/system/
+# edit User= / paths if your user isn't "anglican"
+sudo systemctl daemon-reload
+sudo systemctl enable --now anglican-mcp
+journalctl -u anglican-mcp -f          # wait for: serving on http://127.0.0.1:8000/mcp (~30s warmup)
+```
+Verify locally:
+```bash
+curl -sN -XPOST localhost:8000/mcp -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"0"}}}' | head -c 200
+# -> ...{"result":{"serverInfo":{"name":"anglican-library"...
+```
+
+### 2. Auth token
+```bash
+openssl rand -hex 32           # copy this
+```
+
+### 3. Caddy (automatic HTTPS + token check)
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+sudo nano /etc/caddy/Caddyfile     # set your domain + paste the token
+sudo systemctl restart caddy       # fetches a Let's Encrypt cert automatically
+```
+
+### 4. Point your MCP client at the HTTPS endpoint
+```json
+{
+  "mcpServers": {
+    "anglican-library": {
+      "type": "http",
+      "url": "https://your.domain.example/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}
+```
+(Adapt to your client's remote-server schema — some use `"transport": "http"`.)
+
+### Managing it
+```bash
+sudo systemctl restart anglican-mcp     # after swapping in a new index/DB
+journalctl -u anglican-mcp -f           # logs
+```
 
 ## Cost summary
 - **$0/mo** — Oracle Always-Free Ampere A1 (2 ARM / 12 GB).

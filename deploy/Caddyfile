@@ -1,0 +1,16 @@
+# Caddy reverse proxy: automatic HTTPS (Let's Encrypt) + bearer-token auth in
+# front of the localhost MCP server. Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#
+# Replace BOTH placeholders:
+#   - your.domain.example  -> a domain whose A record points at this server
+#   - REPLACE_WITH_YOUR_TOKEN -> output of: openssl rand -hex 32
+your.domain.example {
+    # Only requests with the exact bearer token reach the MCP server.
+    @authed header Authorization "Bearer REPLACE_WITH_YOUR_TOKEN"
+    handle @authed {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1   # stream responses (MCP Streamable HTTP / SSE)
+        }
+    }
+    respond "Unauthorized" 401
+}
