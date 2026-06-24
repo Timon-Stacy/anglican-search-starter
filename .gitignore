@@ -1,0 +1,26 @@
+# Data + build artifacts (too large / machine-specific for git)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.faiss
+*.faiss.bak
+*.bak
+
+# Python env / caches
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+uv_sync.log
+mcp_server.err
+
+# Model / HF caches (if ever placed in-tree)
+hf-cache/
+models/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

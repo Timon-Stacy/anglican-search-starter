@@ -1,0 +1,18 @@
+# Never send large data / local state into the build context
+*.db
+*.db-wal
+*.db-shal
+*.db-shm
+*.faiss
+*.faiss.bak
+*.bak
+.venv/
+**/__pycache__/
+*.pyc
+.git/
+.gitignore
+sample_data/
+uv_sync.log
+mcp_server.err
+test_library.db
+test_index.faiss

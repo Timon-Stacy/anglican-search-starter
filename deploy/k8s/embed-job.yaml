@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: anglican-embed
+  labels:
+    app: anglican-search
+spec:
+  backoffLimit: 2          # the pipeline is resumable, so retries continue safely
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app: anglican-search
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: embed
+          # Push the built image to your PCAI registry and set it here.
+          image: REGISTRY/anglican-embed:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--phase", "all", "--encode-batch", "512"]
+          env:
+            - name: ANGLICAN_DB
+              value: /data/library.db
+            - name: ANGLICAN_INDEX
+              value: /data/index.faiss
+            # Optional: stage the DB from object storage on first run instead of
+            # copying it onto the PVC manually. Downloads once (PVC persists).
+            # - name: ANGLICAN_DB_URL
+            #   value: "https://<minio-or-s3>/anglican/library.db"
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: 24Gi
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: 1
+              memory: 12Gi
+              cpu: "4"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: dshm
+              mountPath: /dev/shm   # larger shared memory for dataloader/encode
+      tolerations:
+        # GPU nodes are commonly tainted; tolerate the standard NVIDIA taint.
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: anglican-data
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi

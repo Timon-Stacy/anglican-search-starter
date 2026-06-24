@@ -1,0 +1,36 @@
+[project]
+name = "anglican-search"
+version = "0.1.0"
+description = "Local semantic search over a personal Anglican theological library (FAISS + MCP)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # GPU embeddings — torch must be the cu128 build for Blackwell (sm_120).
+    "torch>=2.7",
+    "sentence-transformers>=3.0",
+    # CPU FAISS is the right call on Windows (no GPU wheels) and plenty fast here.
+    "faiss-cpu>=1.8",
+    # Official Python MCP SDK for the search server.
+    "mcp>=1.2",
+    "numpy>=1.26",
+    "tqdm>=4.66",
+    "pyspellchecker>=0.9.0",
+]
+
+[project.scripts]
+anglican-search-mcp = "anglican_search.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anglican_search"]
+
+# Pull torch from the CUDA 12.8 index so we get Blackwell-capable wheels.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anglican-data
+  labels:
+    app: anglican-search
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      # ~5.3 GB library.db + ~2.5 GB index (Qwen3 @512-d) + headroom.
+      storage: 20Gi
+  # Set to a storage class available on your HPE PCAI cluster, e.g. the default
+  # block class. Run `kubectl get storageclass` to list options.
+  # storageClassName: hpe-standard
