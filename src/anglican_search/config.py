@@ -40,10 +40,12 @@ QUERY_PREFIX = (
 )
 PASSAGE_PREFIX = ""  # Qwen3 documents are embedded without an instruction
 
-# Reranker (cross-encoder) applied to FAISS candidates. bge-reranker-v2-m3:
-# ~568M params, Apache-2.0, strong quality + fast; fits easily alongside the
-# embedder on a 12 GB card. Swappable (e.g. Qwen3-Reranker-0.6B) in one line.
-RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+# Reranker (cross-encoder) applied to FAISS candidates. Default bge-reranker-v2-m3
+# (~568M, Apache-2.0) is great on a GPU. On a CPU-only serving box override both
+# of these via env for low latency, e.g.:
+#   ANGLICAN_RERANKER=cross-encoder/ms-marco-MiniLM-L-6-v2  ANGLICAN_RERANK_POOL=30
+RERANKER_MODEL = os.environ.get("ANGLICAN_RERANKER", "BAAI/bge-reranker-v2-m3")
+DEFAULT_RERANK_POOL = int(os.environ.get("ANGLICAN_RERANK_POOL", "80"))
 
 
 @dataclass(frozen=True)

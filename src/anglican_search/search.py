@@ -25,6 +25,7 @@ import torch
 
 from .config import (
     DB_PATH,
+    DEFAULT_RERANK_POOL,
     EMBEDDING_MODEL,
     EMBEDDING_TRUNCATE_DIM,
     INDEX_PATH,
@@ -167,7 +168,7 @@ class Searcher:
         *,
         rerank: bool = True,
         fetch_k: int | None = None,
-        rerank_pool: int = 80,
+        rerank_pool: int = DEFAULT_RERANK_POOL,
         filters: Filters | None = None,
     ) -> list[dict[str, Any]]:
         filters = filters or Filters()
