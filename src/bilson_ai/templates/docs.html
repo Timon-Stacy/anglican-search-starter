@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}API docs — {{ brand }}{% endblock %}
+{% block content %}
+<h2>API</h2>
+<p>Authenticate with your API key as a bearer token (or <code>X-API-Key</code> header).
+Create a key on your <a href="/dashboard">dashboard</a>.</p>
+
+<h3>POST <code>/v1/search</code></h3>
+<pre>curl -s https://YOUR_DOMAIN/v1/search \
+  -H "Authorization: Bearer bk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"the eternal generation of the Son","top_k":5}'</pre>
+
+<h4>Request body</h4>
+<table class="def">
+  <tr><td><code>query</code></td><td>string, required</td></tr>
+  <tr><td><code>top_k</code></td><td>int, default 5, max 25</td></tr>
+  <tr><td><code>mode</code></td><td><code>"semantic"</code> (default) or <code>"literal"</code></td></tr>
+  <tr><td><code>rerank</code></td><td>bool, default true (cross-encoder rerank)</td></tr>
+  <tr><td><code>author</code>, <code>category</code>, <code>title</code></td><td>substring filters</td></tr>
+  <tr><td><code>year_min</code>, <code>year_max</code></td><td>publication-year range</td></tr>
+</table>
+
+<h4>Response</h4>
+<pre>{
+  "query": "...",
+  "count": 5,
+  "results": [
+    {"score": 0.91, "title": "...", "author": "...", "year": 1854,
+     "book_id": 1914, "url": "https://...", "char_start": 8331,
+     "char_end": 10034, "text": "..."},
+    ...
+  ]
+}</pre>
+
+<h4>Status codes</h4>
+<table class="def">
+  <tr><td><code>200</code></td><td>success</td></tr>
+  <tr><td><code>401</code></td><td>missing/invalid API key</td></tr>
+  <tr><td><code>429</code></td><td>monthly quota exceeded</td></tr>
+  <tr><td><code>503</code></td><td>search engine not ready</td></tr>
+</table>
+<p class="muted">Your monthly request quota is shown on your dashboard.</p>
+{% endblock %}

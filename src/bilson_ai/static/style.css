@@ -1,0 +1,95 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --ink: #e8eaed;
+  --muted: #9aa3b2;
+  --line: #262b35;
+  --brand: #6c8cff;
+  --brand-ink: #0b1020;
+  --ok: #4cc38a;
+  --bad: #e5707e;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: radial-gradient(1200px 600px at 70% -10%, #1b2030 0%, var(--bg) 55%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 28px; border-bottom: 1px solid var(--line);
+}
+.nav .brand { font-weight: 700; font-size: 20px; color: var(--ink); letter-spacing: .2px; }
+.nav nav a { margin-left: 18px; color: var(--muted); }
+.nav nav a:hover { color: var(--ink); text-decoration: none; }
+
+main { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; padding: 40px 24px; }
+
+.btn {
+  display: inline-block; background: var(--brand); color: var(--brand-ink);
+  font-weight: 600; padding: 11px 18px; border-radius: 10px; border: 0; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.07); text-decoration: none; }
+.btn.small { padding: 7px 13px; font-size: 14px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+button.link { background: none; border: 0; color: var(--brand); cursor: pointer; padding: 0; font: inherit; }
+button.link:hover { text-decoration: underline; }
+
+.hero { text-align: center; padding: 48px 0 28px; }
+.hero h1 { font-size: 40px; line-height: 1.15; margin: 0 0 12px; }
+.hero .lead { color: var(--muted); font-size: 19px; max-width: 620px; margin: 0 auto 26px; }
+.cta .btn { margin: 0 6px; }
+
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.card h3 { margin: 0 0 8px; font-size: 17px; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+
+.form-card {
+  max-width: 380px; margin: 24px auto; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 26px;
+}
+.form-card h2 { margin-top: 0; }
+label { display: block; margin: 14px 0; font-size: 14px; color: var(--muted); }
+input {
+  width: 100%; margin-top: 6px; padding: 10px 12px; background: #0d0f14;
+  border: 1px solid var(--line); border-radius: 9px; color: var(--ink); font: inherit;
+}
+input[size] { width: auto; }
+.inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0; }
+.inline input { width: auto; margin-top: 0; }
+
+table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+tr.revoked td { color: var(--muted); }
+table.def td:first-child { width: 220px; }
+.actions form { display: inline-flex; margin-right: 10px; }
+
+pre {
+  background: #0d0f14; border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto; font-size: 13px;
+}
+.key-reveal { background: #142019; border: 1px solid #1f3a2c; border-radius: 10px; padding: 16px; margin: 18px 0; }
+code.key { display: block; margin-top: 8px; word-break: break-all; color: var(--ok); font-size: 14px; }
+
+.usage { margin: 18px 0; }
+.usage .bar { height: 8px; background: #0d0f14; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; overflow: hidden; }
+.usage .bar span { display: block; height: 100%; background: var(--brand); }
+
+.error { color: var(--bad); background: #2a1418; border: 1px solid #50232b; padding: 9px 12px; border-radius: 8px; }
+.muted { color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); color: var(--muted); padding: 20px 28px; font-size: 13px; text-align: center; }
+footer a { color: var(--muted); }
+
+@media (max-width: 680px) { .features { grid-template-columns: 1fr; } .hero h1 { font-size: 30px; } }

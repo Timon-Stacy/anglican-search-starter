@@ -84,8 +84,21 @@ filters.
 | `notebooks/embed_on_pcai.ipynb` | Build the index on a GPU notebook workspace |
 | `deploy/` | Dockerfile + Kubernetes manifests + deployment guide |
 
+## Bilson AI — hosted web service
+
+`src/bilson_ai/` is a FastAPI app that turns the search engine into a product:
+a marketing site, user signup/login (hashed passwords + sessions), API-key
+issue/revoke, per-user monthly usage quotas, an admin panel, a documented REST
+API (`POST /v1/search`), plus health and legal pages. It loads the search model
+once and shares it across requests.
+
+```bash
+uv sync --extra web                 # or pip install the [web] extra
+BILSON_SECRET=$(openssl rand -hex 32) uv run bilson-ai   # serves on 127.0.0.1:8001
+```
+
 ## Deployment
 
-See [deploy/README.md](deploy/README.md) for running the index build as a GPU
-job (Kubernetes) or notebook on a private-cloud AI platform, and shipping the
-resulting `index.faiss` to a CPU serving host.
+- **Build the index** on a GPU (Kubernetes job or notebook): [deploy/README.md](deploy/README.md).
+- **Host the service** on a CPU box (specs, providers, slim DB, TLS): [deploy/SERVE.md](deploy/SERVE.md).
+- **Full server runbook** (Bilson AI + systemd + Caddy + admin, step by step): [deploy/SETUP.md](deploy/SETUP.md).

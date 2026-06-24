@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ brand }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/">{{ brand }}</a>
+    <nav>
+      <a href="/docs">API</a>
+      {% if user %}
+        <a href="/dashboard">Dashboard</a>
+        {% if user['is_admin'] %}<a href="/admin">Admin</a>{% endif %}
+        <a href="/logout">Log out</a>
+      {% else %}
+        <a href="/login">Log in</a>
+        <a class="btn small" href="/signup">Sign up</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>
+    <span>&copy; {{ brand }}</span> &middot;
+    <a href="/legal">Terms &amp; Privacy</a> &middot;
+    <a href="/docs">API docs</a>
+  </footer>
+</body>
+</html>

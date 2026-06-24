@@ -26,7 +26,8 @@ uv venv --python 3.12
 uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 uv pip install \
   "sentence-transformers>=3.0" "faiss-cpu>=1.8" "mcp>=1.2" \
-  "pyspellchecker>=0.9.0" "numpy>=1.26" "tqdm>=4.66"
+  "pyspellchecker>=0.9.0" "numpy>=1.26" "tqdm>=4.66" \
+  "fastapi>=0.110" "uvicorn>=0.27" "jinja2>=3.1" "python-multipart>=0.0.9" "itsdangerous>=2.1"
 uv pip install --no-deps -e .
 
 # 3. Pre-cache the serving models so the first query isn't slow.

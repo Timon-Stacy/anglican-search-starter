@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Terms &amp; Privacy — {{ brand }}{% endblock %}
+{% block content %}
+<h2>Terms &amp; Privacy</h2>
+
+<h3>Terms of Service</h3>
+<p>{{ brand }} provides programmatic search over a collection of public-domain
+historical theological texts, offered on an "as is" and "as available" basis
+without warranties of any kind. You are responsible for keeping your API keys
+secret and for all activity under your account. Usage is subject to the request
+quota shown on your dashboard. We may suspend accounts that abuse the service or
+attempt to disrupt it.</p>
+
+<h3>Privacy</h3>
+<p>We store the minimum needed to operate the service: your email address, a
+salted hash of your password, salted hashes of your API keys, and per-month
+request counts for quota and billing. We do not sell your personal data. Source
+texts are public-domain works; search results contain only excerpts of those
+works with bibliographic attribution.</p>
+
+<p class="muted">Questions? Contact the service administrator.</p>
+{% endblock %}

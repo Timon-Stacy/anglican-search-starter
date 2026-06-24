@@ -18,13 +18,24 @@ dependencies = [
 
 [project.scripts]
 anglican-search-mcp = "anglican_search.server:main"
+bilson-ai = "bilson_ai.app:main"
+
+[project.optional-dependencies]
+# Bilson AI web service (installed on the serving host, not the embed image).
+web = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.1",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/anglican_search"]
+packages = ["src/anglican_search", "src/bilson_ai"]
 
 # Pull torch from the CUDA 12.8 index so we get Blackwell-capable wheels.
 [[tool.uv.index]]

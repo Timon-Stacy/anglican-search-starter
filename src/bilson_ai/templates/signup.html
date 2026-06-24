@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Sign up — {{ brand }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <h2>Create your account</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/signup">
+    <label>Email<input type="email" name="email" required autofocus></label>
+    <label>Password<input type="password" name="password" minlength="8" required></label>
+    <button class="btn" type="submit">Sign up</button>
+  </form>
+  <p class="muted">Already have an account? <a href="/login">Log in</a>.</p>
+</div>
+{% endblock %}

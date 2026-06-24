@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Search historical Anglican theology by meaning.</h1>
+  <p class="lead">{{ tagline }}</p>
+  <div class="cta">
+    <a class="btn" href="/signup">Get an API key</a>
+    <a class="btn ghost" href="/docs">Read the docs</a>
+  </div>
+</section>
+<section class="features">
+  <div class="card">
+    <h3>Semantic search</h3>
+    <p>Vector retrieval with cross-encoder reranking over ~1,500 cleaned 19th-century volumes.</p>
+  </div>
+  <div class="card">
+    <h3>Citation-ready</h3>
+    <p>Every passage returns title, author, year, source URL, and character offsets.</p>
+  </div>
+  <div class="card">
+    <h3>Simple REST API</h3>
+    <p>One authenticated <code>POST</code>. JSON in, JSON out. Filter by author, category, or year.</p>
+  </div>
+</section>
+{% endblock %}

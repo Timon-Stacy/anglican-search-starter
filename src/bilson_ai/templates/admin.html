@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Admin — {{ brand }}{% endblock %}
+{% block content %}
+<h2>Admin</h2>
+<p class="muted">{{ users|length }} user(s).</p>
+<table>
+  <thead><tr>
+    <th>ID</th><th>Email</th><th>Keys</th><th>Used (mo)</th><th>Limit</th>
+    <th>Admin</th><th>Active</th><th>Actions</th>
+  </tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr class="{{ '' if u['is_active'] else 'revoked' }}">
+      <td>{{ u['id'] }}</td>
+      <td>{{ u['email'] }}</td>
+      <td>{{ u['active_keys'] }}</td>
+      <td>{{ u['used'] or 0 }}</td>
+      <td>{{ u['monthly_limit'] if u['monthly_limit'] is not none else default_limit }}</td>
+      <td>{{ 'yes' if u['is_admin'] else '' }}</td>
+      <td>{{ 'yes' if u['is_active'] else 'no' }}</td>
+      <td class="actions">
+        <form method="post" action="/admin/user/{{ u['id'] }}">
+          <input type="hidden" name="action" value="toggle_active">
+          <button class="link">{{ 'disable' if u['is_active'] else 'enable' }}</button>
+        </form>
+        <form method="post" action="/admin/user/{{ u['id'] }}">
+          <input type="hidden" name="action" value="toggle_admin">
+          <button class="link">{{ 'demote' if u['is_admin'] else 'make admin' }}</button>
+        </form>
+        <form method="post" action="/admin/user/{{ u['id'] }}" class="inline">
+          <input type="hidden" name="action" value="set_limit">
+          <input name="value" size="6" placeholder="limit" inputmode="numeric">
+          <button class="link">set</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
