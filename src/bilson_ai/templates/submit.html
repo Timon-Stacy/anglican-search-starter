@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Submit a book — {{ brand }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <h2>Submit a book</h2>
+  <p class="muted">Paste an <strong>Internet Archive</strong> or <strong>Project Gutenberg</strong>
+  link. We check it's not already in the library, then queue it for an admin to review and import.</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if info %}<p class="info">{{ info }}</p>{% endif %}
+  <form method="post" action="/submit">
+    <label>Source URL
+      <input name="url" placeholder="https://archive.org/details/…" required autofocus>
+    </label>
+    <label>Title (optional)
+      <input name="title" maxlength="200" placeholder="As you'd like it listed">
+    </label>
+    <label>Note to admin (optional)
+      <input name="note" maxlength="300" placeholder="Why it belongs in the library">
+    </label>
+    <button class="btn" type="submit">Submit for review</button>
+  </form>
+</div>
+{% endblock %}

@@ -37,6 +37,22 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 
 CREATE INDEX IF NOT EXISTS idx_keys_user ON api_keys(user_id);
+
+-- Proposed books awaiting admin review/import.
+CREATE TABLE IF NOT EXISTS submissions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    url         TEXT NOT NULL,
+    source_type TEXT,                 -- ia | gutenberg | google
+    source_id   TEXT,
+    title       TEXT,
+    note        TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending',  -- pending|approved|imported|rejected|failed
+    detail      TEXT,
+    created_at  TEXT NOT NULL,
+    reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sub_status ON submissions(status);
 """
 
 

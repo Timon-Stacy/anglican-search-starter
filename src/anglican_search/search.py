@@ -31,6 +31,7 @@ from .config import (
     EMBEDDING_TRUNCATE_DIM,
     HNSW_EF_SEARCH,
     INDEX_PATH,
+    PASSAGE_PREFIX,
     QUERY_PREFIX,
     RERANKER_MODEL,
     SQLITE_MMAP_BYTES,
@@ -91,6 +92,8 @@ class Searcher:
         # One GPU at serve time, so serialize inference: concurrent requests queue
         # cleanly instead of contending on CUDA (which wouldn't parallelize anyway).
         self._gpu_lock = threading.Lock()
+        # Guards the FAISS index so live additions (new books) never race searches.
+        self._index_lock = threading.Lock()
         self._model = None
         self._index = None
         self._reranker = None
@@ -225,7 +228,8 @@ class Searcher:
                 [QUERY_PREFIX + query], normalize_embeddings=True, convert_to_numpy=True
             ).astype("float32")
         self._ensure_ef(max(fetch_k, k))
-        scores, ids = self.index.search(qv, max(fetch_k, k))  # FAISS read is thread-safe
+        with self._index_lock:
+            scores, ids = self.index.search(qv, max(fetch_k, k))
         id_list = [int(i) for i in ids[0] if i != -1]
         rows = self._fetch(id_list, filters)
 
@@ -317,6 +321,26 @@ class Searcher:
             "WHERE book_id = ? ORDER BY chunk_index LIMIT ? OFFSET ?",
             (book_id, limit, offset),
         ).fetchall()
+
+    # -- live additions (new books imported at runtime) ---------------------
+    def embed_passages(self, texts: list[str]):
+        """Embed passage texts (no query prefix) -> float32 matrix for FAISS."""
+        with self._gpu_lock:
+            return self.model.encode(
+                [PASSAGE_PREFIX + t for t in texts],
+                normalize_embeddings=True, convert_to_numpy=True,
+            ).astype("float32")
+
+    def add_to_index(self, ids: list[int], vectors) -> None:
+        """Add new vectors to the live index (id == chunks.id). Thread-safe."""
+        import numpy as np
+
+        with self._index_lock:
+            self.index.add_with_ids(vectors, np.asarray(ids, dtype=np.int64))
+
+    def save_index(self, path: str | None = None) -> None:
+        with self._index_lock:
+            faiss.write_index(self.index, path or self.index_path)
 
 
 # Module-level singleton so the model/index load once per process (MCP server).

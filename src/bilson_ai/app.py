@@ -23,9 +23,10 @@ from anglican_search.batch import BatchedSearch
 from anglican_search.config import DEEP_MAX_TOP_K, MAX_TOP_K
 from anglican_search.search import Filters, get_searcher
 
-from . import accounts
+from . import accounts, submissions
 from .config import BRAND, DEFAULT_MONTHLY_LIMIT, HOST, PORT, SECRET_KEY, TAGLINE, ADMIN_EMAIL
 from .db import init_db
+from .importer import Importer
 
 _HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(_HERE / "templates"))
@@ -68,11 +69,16 @@ async def lifespan(app: FastAPI):
     # main thread at startup — lazy-loading inside a request deadlocks.
     app.state.searcher = get_searcher()
     app.state.batcher = None
+    app.state.importer = None
     try:
         app.state.searcher.semantic("warmup", k=1, rerank=True)
         # Dynamic micro-batching layer for the high-traffic search endpoints.
         app.state.batcher = BatchedSearch(app.state.searcher)
-        print("[bilson] search engine ready (batched).", flush=True)
+        # Background worker that imports approved book submissions.
+        app.state.importer = Importer(app.state.searcher,
+                                      app.state.searcher.db_path,
+                                      app.state.searcher.index_path)
+        print("[bilson] search engine ready (batched + importer).", flush=True)
     except Exception as e:  # noqa: BLE001 - serve the site even if the index isn't built yet
         print(f"[bilson] search engine unavailable ({e}); /v1/search will error.", flush=True)
     yield
@@ -287,6 +293,66 @@ def book_detail(request: Request, book_id: int, p: int = 1):
     return page(request, "book.html", book=book,
                 chunks=searcher.book_chunks(book_id, per, (p - 1) * per),
                 total=searcher.count_book_chunks(book_id), p=p, per=per)
+
+
+# --- book submissions ------------------------------------------------------
+@app.get("/submit", response_class=HTMLResponse)
+def submit_form(request: Request):
+    if not current_user(request):
+        return RedirectResponse("/login", status_code=303)
+    return page(request, "submit.html")
+
+
+@app.post("/submit", response_class=HTMLResponse)
+def submit(request: Request, url: str = Form(...), title: str = Form(""), note: str = Form("")):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    stype, sid = submissions.parse_source(url)
+    if stype is None:
+        return page(request, "submit.html",
+                    error="Unrecognised link. Use an Internet Archive (archive.org/details/...) "
+                          "or Project Gutenberg (gutenberg.org/ebooks/...) URL.")
+    if stype == "google":
+        return page(request, "submit.html",
+                    error="Google Books links can't be imported automatically yet.")
+    searcher = getattr(request.app.state, "searcher", None)
+    if searcher is not None and submissions.in_library(searcher.conn, stype, sid):
+        return page(request, "submit.html", info="That book is already in the library.")
+    if submissions.existing(stype, sid):
+        return page(request, "submit.html", info="That book has already been submitted.")
+    submissions.create(user["id"], url.strip(), stype, sid, title, note)
+    return page(request, "submit.html",
+                info="Thanks! Your submission was added to the review queue.")
+
+
+@app.get("/admin/queue", response_class=HTMLResponse)
+def admin_queue(request: Request):
+    user = current_user(request)
+    if not user or not user["is_admin"]:
+        return RedirectResponse("/login", status_code=303)
+    return page(request, "queue.html",
+                pending=submissions.by_status("pending"),
+                recent=(submissions.by_status("imported", 10)
+                        + submissions.by_status("failed", 10)
+                        + submissions.by_status("rejected", 10)))
+
+
+@app.post("/admin/queue/{sub_id}")
+def admin_queue_action(request: Request, sub_id: int, action: str = Form(...)):
+    user = current_user(request)
+    if not user or not user["is_admin"]:
+        return RedirectResponse("/login", status_code=303)
+    if action == "approve":
+        submissions.set_status(sub_id, "approved")
+        importer = getattr(request.app.state, "importer", None)
+        if importer is not None:
+            importer.enqueue(sub_id)
+        else:
+            submissions.set_status(sub_id, "failed", "importer unavailable (index not loaded)")
+    elif action == "reject":
+        submissions.set_status(sub_id, "rejected")
+    return RedirectResponse("/admin/queue", status_code=303)
 
 
 # --- REST API --------------------------------------------------------------

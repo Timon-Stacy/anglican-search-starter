@@ -87,6 +87,7 @@ code.key { display: block; margin-top: 8px; word-break: break-all; color: var(--
 .usage .bar span { display: block; height: 100%; background: var(--brand); }
 
 .error { color: var(--bad); background: #2a1418; border: 1px solid #50232b; padding: 9px 12px; border-radius: 8px; }
+.info { color: var(--ok); background: #142019; border: 1px solid #1f3a2c; padding: 9px 12px; border-radius: 8px; }
 .muted { color: var(--muted); }
 
 footer { border-top: 1px solid var(--line); color: var(--muted); padding: 20px 28px; font-size: 13px; text-align: center; }

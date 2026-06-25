@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Submission queue — {{ brand }}{% endblock %}
+{% block content %}
+<h2>Submission queue</h2>
+<p class="muted">{{ pending|length }} pending. Approving downloads the source, cleans + chunks it,
+embeds it, and adds it to the live index.</p>
+
+<table>
+  <thead><tr><th>Submitted</th><th>Source</th><th>Title</th><th>By</th><th>Note</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for s in pending %}
+    <tr>
+      <td>{{ s['created_at'] }}</td>
+      <td>{{ s['source_type'] }}:{{ s['source_id'] }}<br><a class="small muted" href="{{ s['url'] }}" target="_blank" rel="noopener">link &#8599;</a></td>
+      <td>{{ s['title'] or '—' }}</td>
+      <td>{{ s['submitter'] or '—' }}</td>
+      <td>{{ s['note'] or '' }}</td>
+      <td class="actions">
+        <form method="post" action="/admin/queue/{{ s['id'] }}"><input type="hidden" name="action" value="approve"><button class="link">approve</button></form>
+        <form method="post" action="/admin/queue/{{ s['id'] }}"><input type="hidden" name="action" value="reject"><button class="link">reject</button></form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">Queue is empty.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if recent %}
+<h3>Recently processed</h3>
+<table>
+  <thead><tr><th>Source</th><th>Status</th><th>Detail</th><th>Reviewed</th></tr></thead>
+  <tbody>
+  {% for s in recent %}
+    <tr>
+      <td>{{ s['source_type'] }}:{{ s['source_id'] }}</td>
+      <td>{{ s['status'] }}</td>
+      <td class="small">{{ s['detail'] or '' }}</td>
+      <td>{{ s['reviewed_at'] or '' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

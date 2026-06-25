@@ -93,7 +93,8 @@ class BatchedSearch:
         # 2) one batched FAISS search (efSearch tracks the largest k in the batch)
         maxfetch = max(max(j.fetch_k, j.k) for j in batch)
         s._ensure_ef(maxfetch)
-        scores, ids = s.index.search(qv, maxfetch)
+        with s._index_lock:
+            scores, ids = s.index.search(qv, maxfetch)
 
         # 3) per-job candidate fetch; gather rerank pairs for one batched predict
         states: list[tuple[_Job, dict, list[tuple[int, float]]]] = []
