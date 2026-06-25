@@ -17,6 +17,7 @@ Create a key on your <a href="/dashboard">dashboard</a>.</p>
   <tr><td><code>top_k</code></td><td>int, default 5, max 25</td></tr>
   <tr><td><code>mode</code></td><td><code>"semantic"</code> (default) or <code>"literal"</code></td></tr>
   <tr><td><code>rerank</code></td><td>bool, default true (cross-encoder rerank)</td></tr>
+  <tr><td><code>deep</code></td><td>bool, default false. Exhaustive recall mode: returns many passages (top_k up to 200, no rerank) for a long-context model to synthesize. Counts as more quota units.</td></tr>
   <tr><td><code>author</code>, <code>category</code>, <code>title</code></td><td>substring filters</td></tr>
   <tr><td><code>year_min</code>, <code>year_max</code></td><td>publication-year range</td></tr>
 </table>

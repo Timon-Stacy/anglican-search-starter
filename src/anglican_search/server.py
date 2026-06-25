@@ -28,7 +28,7 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
-from .config import DB_PATH, EMBEDDING_MODEL, INDEX_PATH
+from .config import DB_PATH, DEEP_MAX_TOP_K, EMBEDDING_MODEL, INDEX_PATH, MAX_TOP_K
 from .search import Filters, Searcher
 
 # Transport: "stdio" (default, for local/SSH use) or "http" (always-on service,
@@ -53,7 +53,7 @@ def _get_searcher() -> Searcher:
     return _searcher
 
 
-def _format(results: list[dict], query: str) -> str:
+def _format(results: list[dict], query: str, snippet_chars: int = 1200) -> str:
     if not results:
         return f'No results for "{query}".'
     lines = [f'Top {len(results)} results for "{query}":\n']
@@ -61,8 +61,8 @@ def _format(results: list[dict], query: str) -> str:
         author = r.get("author") or "Unknown"
         year = f", {r['year']}" if r.get("year") else ""
         snippet = " ".join(r["text"].split())
-        if len(snippet) > 1200:
-            snippet = snippet[:1200] + " […]"
+        if len(snippet) > snippet_chars:
+            snippet = snippet[:snippet_chars] + " […]"
         lines.append(
             f"[{i}] {r['title']} — {author}{year} "
             f"(book_id {r['book_id']}, score {r['score']:.3f})\n"
@@ -78,6 +78,7 @@ def search_anglican_library(
     top_k: int = 5,
     mode: str = "semantic",
     rerank: bool = True,
+    deep: bool = False,
     author: str | None = None,
     category: str | None = None,
     year_min: int | None = None,
@@ -92,18 +93,31 @@ def search_anglican_library(
     with attribution (title, author, year, book_id, source URL, char offsets)
     so results can be cited.
 
+    DEEP SEARCH: set deep=true with a large top_k (up to 200) for an exhaustive,
+    survey-style sweep — e.g. "find everything in the library bearing on X". It
+    returns many passages by semantic recall (the reranker is skipped) for you to
+    read and synthesize over your long context. Use it when the user asks for a
+    "deep"/"exhaustive"/"comprehensive" search or when a handful of results
+    clearly isn't enough; otherwise leave deep=false for a precise, reranked few.
+
     Args:
         query: A natural-language question/topic (semantic) or keywords (literal).
-        top_k: Number of passages to return (default 5, max 25).
+        top_k: Passages to return (default 5; max 25 normally, up to 200 with deep).
         mode: "semantic" (meaning-based, default) or "literal" (exact FTS keywords).
-        rerank: Apply the cross-encoder reranker to semantic results (default True).
+        rerank: Apply the cross-encoder reranker (default True; ignored when deep).
+        deep: Exhaustive recall mode — many passages, no rerank, fuller text.
         author: Restrict to books whose author contains this string (e.g. "Waterland").
         category: Restrict to a category (e.g. "Church History", "Liturgics").
         year_min: Only books published in or after this year.
         year_max: Only books published in or before this year.
         title: Restrict to books whose title contains this string.
     """
-    top_k = max(1, min(int(top_k), 25))
+    if deep:
+        top_k = max(1, min(int(top_k), DEEP_MAX_TOP_K))
+        use_rerank, snippet_chars = False, 4000
+    else:
+        top_k = max(1, min(int(top_k), MAX_TOP_K))
+        use_rerank, snippet_chars = rerank, 1200
     filters = Filters(author=author, category=category, title=title,
                       year_min=year_min, year_max=year_max)
     try:
@@ -111,13 +125,13 @@ def search_anglican_library(
         if mode.lower() == "literal":
             results = s.literal(query, k=top_k, filters=filters)
         else:
-            results = s.semantic(query, k=top_k, rerank=rerank, filters=filters)
+            results = s.semantic(query, k=top_k, rerank=use_rerank, filters=filters)
     except FileNotFoundError:
         return ("The FAISS index is not built yet. Run the embedding step first:\n"
                 "  uv run python -m anglican_search.embed_library --phase all")
     except Exception as e:  # noqa: BLE001 - surface a usable message to the model
         return f"Search error: {e}"
-    return _format(results, query)
+    return _format(results, query, snippet_chars=snippet_chars)
 
 
 def _warmup() -> None:

@@ -48,6 +48,12 @@ PASSAGE_PREFIX = ""  # Qwen3 documents are embedded without an instruction
 RERANKER_MODEL = os.environ.get("ANGLICAN_RERANKER", "BAAI/bge-reranker-v2-m3")
 DEFAULT_RERANK_POOL = int(os.environ.get("ANGLICAN_RERANK_POOL", "80"))
 
+# Result caps. Normal search returns a reranked handful; "deep" search returns
+# many passages by semantic recall (no rerank) for a long-context model to
+# reason over — see the deep flag on the API / MCP tool.
+MAX_TOP_K = int(os.environ.get("ANGLICAN_MAX_TOP_K", "25"))
+DEEP_MAX_TOP_K = int(os.environ.get("ANGLICAN_DEEP_MAX_TOP_K", "200"))
+
 
 # FAISS index type. HNSW is approximate but ~10-50x faster search at ~1.2M
 # vectors (vs exact flat), keeping the CPU light and the GPU free for the models.

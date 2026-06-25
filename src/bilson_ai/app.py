@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from anglican_search.batch import BatchedSearch
+from anglican_search.config import DEEP_MAX_TOP_K, MAX_TOP_K
 from anglican_search.search import Filters, get_searcher
 
 from . import accounts
@@ -294,6 +295,7 @@ class SearchRequest(BaseModel):
     top_k: int = 5
     mode: str = "semantic"          # "semantic" | "literal"
     rerank: bool = True
+    deep: bool = False              # recall mode: many passages, no rerank
     author: str | None = None
     category: str | None = None
     year_min: int | None = None
@@ -330,19 +332,26 @@ def api_search(req: SearchRequest, request: Request):
 
     filters = Filters(author=req.author, category=req.category, title=req.title,
                       year_min=req.year_min, year_max=req.year_max)
-    top_k = max(1, min(req.top_k, 25))
+    # Deep mode: return many passages by recall (no rerank) for a long-context
+    # model to synthesize. It costs more data, so it counts as more quota units.
+    if req.deep:
+        top_k = max(1, min(req.top_k, DEEP_MAX_TOP_K))
+        use_rerank = False
+    else:
+        top_k = max(1, min(req.top_k, MAX_TOP_K))
+        use_rerank = req.rerank
     try:
         if req.mode == "literal":
             results = searcher.literal(req.query, k=top_k, filters=filters)
         elif batcher is not None:
-            results = batcher.search(req.query, k=top_k, rerank=req.rerank, filters=filters)
+            results = batcher.search(req.query, k=top_k, rerank=use_rerank, filters=filters)
         else:
-            results = searcher.semantic(req.query, k=top_k, rerank=req.rerank, filters=filters)
+            results = searcher.semantic(req.query, k=top_k, rerank=use_rerank, filters=filters)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": "search_error", "detail": str(e)}, status_code=500)
 
-    accounts.record_use(user["id"])
-    return {"query": req.query, "count": len(results), "results": results}
+    accounts.record_use(user["id"], n=(-(-top_k // 25) if req.deep else 1))
+    return {"query": req.query, "count": len(results), "deep": req.deep, "results": results}
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)

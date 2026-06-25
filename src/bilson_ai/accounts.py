@@ -160,13 +160,13 @@ def usage_this_month(user_id: int) -> int:
         conn.close()
 
 
-def record_use(user_id: int) -> None:
+def record_use(user_id: int, n: int = 1) -> None:
     conn = db.connect()
     try:
         conn.execute(
-            "INSERT INTO usage (user_id, period, count) VALUES (?,?,1) "
-            "ON CONFLICT(user_id, period) DO UPDATE SET count = count + 1",
-            (user_id, _period()),
+            "INSERT INTO usage (user_id, period, count) VALUES (?,?,?) "
+            "ON CONFLICT(user_id, period) DO UPDATE SET count = count + ?",
+            (user_id, _period(), n, n),
         )
         conn.commit()
     finally:
