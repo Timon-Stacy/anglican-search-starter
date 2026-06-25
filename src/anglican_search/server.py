@@ -28,7 +28,8 @@ import sys
 
 from mcp.server.fastmcp import FastMCP
 
-from .config import DB_PATH, DEEP_MAX_TOP_K, EMBEDDING_MODEL, INDEX_PATH, MAX_TOP_K
+from .config import DB_PATH, EMBEDDING_MODEL, INDEX_PATH
+from .mcp_tool import format_results, run_search
 from .search import Filters, Searcher
 
 # Transport: "stdio" (default, for local/SSH use) or "http" (always-on service,
@@ -51,25 +52,6 @@ def _get_searcher() -> Searcher:
             model_name=os.environ.get("ANGLICAN_MODEL", EMBEDDING_MODEL),
         )
     return _searcher
-
-
-def _format(results: list[dict], query: str, snippet_chars: int = 1200) -> str:
-    if not results:
-        return f'No results for "{query}".'
-    lines = [f'Top {len(results)} results for "{query}":\n']
-    for i, r in enumerate(results, 1):
-        author = r.get("author") or "Unknown"
-        year = f", {r['year']}" if r.get("year") else ""
-        snippet = " ".join(r["text"].split())
-        if len(snippet) > snippet_chars:
-            snippet = snippet[:snippet_chars] + " […]"
-        lines.append(
-            f"[{i}] {r['title']} — {author}{year} "
-            f"(book_id {r['book_id']}, score {r['score']:.3f})\n"
-            f"    source: {r.get('url') or 'n/a'}  chars {r.get('char_start')}-{r.get('char_end')}\n"
-            f"    {snippet}\n"
-        )
-    return "\n".join(lines)
 
 
 @mcp.tool()
@@ -112,26 +94,18 @@ def search_anglican_library(
         year_max: Only books published in or before this year.
         title: Restrict to books whose title contains this string.
     """
-    if deep:
-        top_k = max(1, min(int(top_k), DEEP_MAX_TOP_K))
-        use_rerank, snippet_chars = False, 4000
-    else:
-        top_k = max(1, min(int(top_k), MAX_TOP_K))
-        use_rerank, snippet_chars = rerank, 1200
     filters = Filters(author=author, category=category, title=title,
                       year_min=year_min, year_max=year_max)
     try:
-        s = _get_searcher()
-        if mode.lower() == "literal":
-            results = s.literal(query, k=top_k, filters=filters)
-        else:
-            results = s.semantic(query, k=top_k, rerank=use_rerank, filters=filters)
+        results, _units, snippet_chars = run_search(
+            _get_searcher(), query, top_k=top_k, mode=mode, rerank=rerank,
+            deep=deep, filters=filters)
     except FileNotFoundError:
         return ("The FAISS index is not built yet. Run the embedding step first:\n"
                 "  uv run python -m anglican_search.embed_library --phase all")
     except Exception as e:  # noqa: BLE001 - surface a usable message to the model
         return f"Search error: {e}"
-    return _format(results, query, snippet_chars=snippet_chars)
+    return format_results(results, query, snippet_chars=snippet_chars)
 
 
 def _warmup() -> None:

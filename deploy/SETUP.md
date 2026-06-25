@@ -101,11 +101,14 @@ curl -s https://your.domain.example/v1/search \
 ---
 
 ## What people can do on the site
+- **Connect their AI via MCP** (the main way): point an MCP client at
+  `https://your.domain/mcp` with their API key as a bearer token. Same key, same
+  monthly quota as the REST API. The dashboard shows the exact endpoint + a
+  ready-to-paste client config.
 - **Browse** the whole library (`/library`): filter by title/author/category, open
   any book and page through its cleaned passages.
 - **Search** manually (`/search`): semantic (meaning) or literal (keywords).
-- **API** (`/dashboard` → key → `/docs`): programmatic `POST /v1/search`, metered
-  by a per-user monthly quota you set in the admin panel.
+- **REST API** (`/dashboard` → key → `/docs`): programmatic `POST /v1/search`.
 
 ## Day-2 operations
 ```bash
@@ -114,4 +117,4 @@ journalctl -u bilson-ai -f                                            # logs
 cp data/accounts.db ~/backups/                                        # back up accounts
 ```
 - Re-embed after a model/data change: `uv run python -m anglican_search.embed_library --phase all`, then restart the service.
-- Want MCP clients too? Run the `anglican-mcp` service (see [SERVE.md](SERVE.md)) and uncomment the `/mcp` block in the Caddyfile, or add a Cloudflare ingress rule for `/mcp` → `localhost:8000`.
+- **MCP is built in** at `https://your.domain/mcp` (served by the same `bilson-ai` process, authenticated by API keys). The standalone `anglican-mcp` stdio server still exists only for a *local* client over SSH (`uv run anglican-search-mcp`).

@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="hero">
-  <h1>Search historical Anglican theology by meaning.</h1>
+  <h1>Give your AI a theological library it can cite.</h1>
   <p class="lead">{{ tagline }}</p>
   <div class="cta">
-    <a class="btn" href="/signup">Get an API key</a>
-    <a class="btn ghost" href="/docs">Read the docs</a>
+    <a class="btn" href="/signup">Get your key</a>
+    <a class="btn ghost" href="/docs">How to connect</a>
   </div>
 </section>
 <section class="features">
   <div class="card">
-    <h3>Semantic search</h3>
-    <p>Vector retrieval with cross-encoder reranking over ~1,500 cleaned 19th-century volumes.</p>
+    <h3>MCP-native</h3>
+    <p>Point Claude, ChatGPT, or any MCP client at one URL with your key. Your assistant searches ~1,500 cleaned 19th-century volumes and cites the source.</p>
   </div>
   <div class="card">
-    <h3>Citation-ready</h3>
-    <p>Every passage returns title, author, year, source URL, and character offsets.</p>
+    <h3>Deep recall</h3>
+    <p>Large-context models can request an exhaustive sweep — up to 200 passages in one call — and reason over the whole set.</p>
   </div>
   <div class="card">
-    <h3>Simple REST API</h3>
-    <p>One authenticated <code>POST</code>. JSON in, JSON out. Filter by author, category, or year.</p>
+    <h3>REST &amp; web too</h3>
+    <p>Prefer code? A simple <code>POST /v1/search</code>. Prefer a browser? Search and browse the library here. Same key, same library.</p>
   </div>
 </section>
 {% endblock %}

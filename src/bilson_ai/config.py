@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 
 BRAND = "Bilson AI"
-TAGLINE = "Semantic search over a curated library of historical Anglican theology."
+TAGLINE = "An MCP server that lets your AI search a curated library of historical Anglican theology — and cite it."
+
+# Public base URL (no trailing slash), used to show the MCP endpoint on the
+# dashboard. In production set e.g. BILSON_PUBLIC_URL=https://library.example.
+# Falls back to the request's own base URL when unset.
+PUBLIC_URL = os.environ.get("BILSON_PUBLIC_URL", "").rstrip("/")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

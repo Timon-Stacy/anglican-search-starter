@@ -11,6 +11,24 @@
 </div>
 {% endif %}
 
+<div class="card" style="margin:18px 0">
+  <h3>Connect your AI (MCP)</h3>
+  <p class="muted">This is the main way to use the library: point any MCP client (Claude, ChatGPT, …)
+  at this endpoint and authenticate with one of your API keys.</p>
+  <p>Endpoint: <code>{{ mcp_url }}</code></p>
+  <pre>{
+  "mcpServers": {
+    "anglican-library": {
+      "type": "http",
+      "url": "{{ mcp_url }}",
+      "headers": { "Authorization": "Bearer YOUR_API_KEY" }
+    }
+  }
+}</pre>
+  <p class="muted small">Then ask your assistant to &ldquo;search the Anglican library for …&rdquo;.
+  The tool supports filters and a <strong>deep</strong> mode — see the <a href="/docs">docs</a>.</p>
+</div>
+
 <div class="usage">
   Usage this month: <strong>{{ used }}</strong> / {{ limit }} requests
   <div class="bar"><span style="width: {{ (100 * used / limit) if limit else 0 }}%"></span></div>

@@ -23,8 +23,9 @@ from anglican_search.batch import BatchedSearch
 from anglican_search.config import DEEP_MAX_TOP_K, MAX_TOP_K
 from anglican_search.search import Filters, get_searcher
 
-from . import accounts, submissions
-from .config import BRAND, DEFAULT_MONTHLY_LIMIT, HOST, PORT, SECRET_KEY, TAGLINE, ADMIN_EMAIL
+from . import accounts, mcp_app as mcpmod, submissions
+from .config import (BRAND, DEFAULT_MONTHLY_LIMIT, HOST, PORT, PUBLIC_URL,
+                     SECRET_KEY, TAGLINE, ADMIN_EMAIL)
 from .db import init_db
 from .importer import Importer
 
@@ -78,13 +79,18 @@ async def lifespan(app: FastAPI):
         app.state.importer = Importer(app.state.searcher,
                                       app.state.searcher.db_path,
                                       app.state.searcher.index_path)
-        print("[bilson] search engine ready (batched + importer).", flush=True)
+        mcpmod.configure(app.state.searcher, app.state.batcher)
+        print("[bilson] ready: MCP (/mcp) + REST (/v1) + website, one shared engine.", flush=True)
     except Exception as e:  # noqa: BLE001 - serve the site even if the index isn't built yet
-        print(f"[bilson] search engine unavailable ({e}); /v1/search will error.", flush=True)
-    yield
+        print(f"[bilson] search engine unavailable ({e}); search will error.", flush=True)
+    # Run the mounted MCP endpoint's session manager for the life of the app.
+    async with mcpmod.mcp.session_manager.run():
+        yield
 
 
 app = FastAPI(title=BRAND, docs_url=None, redoc_url=None, lifespan=lifespan)
+# /mcp is gated by Bilson API keys + quota (pure-ASGI middleware, runs before routing).
+app.add_middleware(mcpmod.MCPAuthMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax", https_only=False)
 app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
 
@@ -124,7 +130,8 @@ def index(request: Request):
 
 @app.get("/docs", response_class=HTMLResponse)
 def docs(request: Request):
-    return page(request, "docs.html")
+    mcp_url = (PUBLIC_URL or str(request.base_url).rstrip("/")) + "/mcp"
+    return page(request, "docs.html", mcp_url=mcp_url)
 
 
 @app.get("/legal", response_class=HTMLResponse)
@@ -185,11 +192,12 @@ def dashboard(request: Request):
     if not user:
         return RedirectResponse("/login", status_code=303)
     new_key = request.session.pop("new_key", None)
+    mcp_url = (PUBLIC_URL or str(request.base_url).rstrip("/")) + "/mcp"
     return page(request, "dashboard.html",
                 keys=accounts.list_keys(user["id"]),
                 used=accounts.usage_this_month(user["id"]),
                 limit=accounts.monthly_limit(user),
-                new_key=new_key)
+                new_key=new_key, mcp_url=mcp_url)
 
 
 @app.post("/keys/create")
@@ -451,7 +459,12 @@ def api_search(req: SearchRequest, request: Request):
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def robots():
-    return "User-agent: *\nDisallow: /dashboard\nDisallow: /admin\nDisallow: /v1/\n"
+    return "User-agent: *\nDisallow: /dashboard\nDisallow: /admin\nDisallow: /v1/\nDisallow: /mcp\n"
+
+
+# Mount the MCP endpoint last: the explicit routes above match first, and /mcp
+# falls through to it. Auth + quota are enforced by MCPAuthMiddleware.
+app.mount("/", mcpmod.asgi)
 
 
 def main() -> None:

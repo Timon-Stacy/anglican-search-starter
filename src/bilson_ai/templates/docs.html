@@ -1,11 +1,34 @@
 {% extends "base.html" %}
 {% block title %}API docs — {{ brand }}{% endblock %}
 {% block content %}
-<h2>API</h2>
-<p>Authenticate with your API key as a bearer token (or <code>X-API-Key</code> header).
-Create a key on your <a href="/dashboard">dashboard</a>.</p>
+<h2>Connect</h2>
+<p>The library is reachable two ways, both with a key from your
+<a href="/dashboard">dashboard</a>: the <strong>MCP endpoint</strong> (the main way — for
+LLMs) and the <strong>REST API</strong> (for code).</p>
 
-<h3>POST <code>/v1/search</code></h3>
+<h3>MCP (recommended)</h3>
+<p>Point any MCP client at <code>{{ mcp_url }}</code>, authenticating with
+<code>Authorization: Bearer YOUR_KEY</code>. It exposes one tool,
+<code>search_anglican_library</code>, returning attributed passages your model can cite.</p>
+<pre>{
+  "mcpServers": {
+    "anglican-library": {
+      "type": "http",
+      "url": "{{ mcp_url }}",
+      "headers": { "Authorization": "Bearer bk_your_key" }
+    }
+  }
+}</pre>
+<p>Tool arguments: <code>query</code>, <code>top_k</code>, <code>mode</code>
+("semantic"/"literal"), <code>rerank</code>, <code>deep</code> (exhaustive recall, top_k up to
+200), and filters <code>author</code> / <code>category</code> / <code>title</code> /
+<code>year_min</code> / <code>year_max</code>. Then just ask your assistant to
+&ldquo;search the Anglican library for …&rdquo;.</p>
+
+<h3>REST API</h3>
+<p>Authenticate with your API key as a bearer token (or <code>X-API-Key</code> header).</p>
+
+<h4>POST <code>/v1/search</code></h4>
 <pre>curl -s https://YOUR_DOMAIN/v1/search \
   -H "Authorization: Bearer bk_your_key_here" \
   -H "Content-Type: application/json" \

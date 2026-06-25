@@ -21,6 +21,8 @@ Environment=BILSON_DB=/home/anglican/anglican-search-starter/data/accounts.db
 Environment=BILSON_MONTHLY_LIMIT=1000
 # This email becomes an admin when it signs up (or use the admin CLI).
 Environment=BILSON_ADMIN_EMAIL=you@example.com
+# Public base URL (so the dashboard shows the correct MCP endpoint, e.g. .../mcp).
+Environment=BILSON_PUBLIC_URL=https://your.domain.example
 # Search engine (shared, loaded once). On the RTX 3060 box we use the full
 # GPU reranker. (For a CPU-only host instead: ANGLICAN_RERANKER=cross-encoder/
 # ms-marco-MiniLM-L-6-v2 and ANGLICAN_RERANK_POOL=30.)

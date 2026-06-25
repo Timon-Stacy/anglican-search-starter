@@ -5,19 +5,9 @@
 # /v1/*), so Caddy here just terminates TLS and proxies. Replace your.domain.example.
 your.domain.example {
     encode gzip
-
-    # Optional: also expose the MCP endpoint, gated by a Bilson API key.
-    # Requires the separate anglican-mcp service running on :8000 (extra ~6 GB RAM).
-    # handle /mcp* {
-    #     forward_auth 127.0.0.1:8001 {
-    #         uri /v1/verify
-    #         copy_headers Authorization
-    #     }
-    #     reverse_proxy 127.0.0.1:8000 {
-    #         flush_interval -1
-    #     }
-    # }
-
-    # Website + REST API -> the Bilson AI app.
+    # The Bilson AI app serves everything on :8001 — the website, the REST API,
+    # and the MCP endpoint at /mcp (all authenticated by the app itself). Caddy
+    # just terminates TLS and proxies. Set BILSON_PUBLIC_URL=https://your.domain
+    # in the service so the dashboard shows the right /mcp URL.
     reverse_proxy 127.0.0.1:8001
 }
