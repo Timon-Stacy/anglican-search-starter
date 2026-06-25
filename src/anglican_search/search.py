@@ -33,6 +33,7 @@ from .config import (
     INDEX_PATH,
     QUERY_PREFIX,
     RERANKER_MODEL,
+    SQLITE_MMAP_BYTES,
 )
 
 
@@ -103,6 +104,8 @@ class Searcher:
             c = sqlite3.connect(self.db_path, check_same_thread=False)
             c.row_factory = sqlite3.Row
             c.execute("PRAGMA busy_timeout = 5000")
+            c.execute(f"PRAGMA mmap_size = {SQLITE_MMAP_BYTES}")  # DB pages in RAM
+            c.execute("PRAGMA cache_size = -65536")               # ~64 MB page cache
             self._local.conn = c
         return c
 

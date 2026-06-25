@@ -52,6 +52,12 @@ DEFAULT_RERANK_POOL = int(os.environ.get("ANGLICAN_RERANK_POOL", "80"))
 # FAISS index type. HNSW is approximate but ~10-50x faster search at ~1.2M
 # vectors (vs exact flat), keeping the CPU light and the GPU free for the models.
 INDEX_TYPE = os.environ.get("ANGLICAN_INDEX_TYPE", "hnsw")  # "hnsw" | "flat"
+
+# Memory-map the (read-only at serve time) SQLite DB so its pages live in RAM
+# without read() syscalls. SQLite caps this at the actual file size; 8 GiB
+# covers the whole library DB. (The OS page cache already keeps it hot in RAM —
+# this just makes it explicit and skips the syscall/copy on each read.)
+SQLITE_MMAP_BYTES = int(os.environ.get("ANGLICAN_SQLITE_MMAP", str(8 * 1024**3)))
 HNSW_M = int(os.environ.get("ANGLICAN_HNSW_M", "32"))
 HNSW_EF_CONSTRUCTION = int(os.environ.get("ANGLICAN_HNSW_EF_CONSTRUCTION", "200"))
 HNSW_EF_SEARCH = int(os.environ.get("ANGLICAN_HNSW_EF_SEARCH", "256"))
