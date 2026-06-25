@@ -49,6 +49,14 @@ RERANKER_MODEL = os.environ.get("ANGLICAN_RERANKER", "BAAI/bge-reranker-v2-m3")
 DEFAULT_RERANK_POOL = int(os.environ.get("ANGLICAN_RERANK_POOL", "80"))
 
 
+# FAISS index type. HNSW is approximate but ~10-50x faster search at ~1.2M
+# vectors (vs exact flat), keeping the CPU light and the GPU free for the models.
+INDEX_TYPE = os.environ.get("ANGLICAN_INDEX_TYPE", "hnsw")  # "hnsw" | "flat"
+HNSW_M = int(os.environ.get("ANGLICAN_HNSW_M", "32"))
+HNSW_EF_CONSTRUCTION = int(os.environ.get("ANGLICAN_HNSW_EF_CONSTRUCTION", "200"))
+HNSW_EF_SEARCH = int(os.environ.get("ANGLICAN_HNSW_EF_SEARCH", "256"))
+
+
 @dataclass(frozen=True)
 class ChunkConfig:
     """Token budget for chunking. Targets ~300-500 tokens with light overlap."""

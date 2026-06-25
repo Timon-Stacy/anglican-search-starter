@@ -29,6 +29,7 @@ from .config import (
     DEFAULT_RERANK_POOL,
     EMBEDDING_MODEL,
     EMBEDDING_TRUNCATE_DIM,
+    HNSW_EF_SEARCH,
     INDEX_PATH,
     QUERY_PREFIX,
     RERANKER_MODEL,
@@ -92,6 +93,7 @@ class Searcher:
         self._model = None
         self._index = None
         self._reranker = None
+        self._hnsw = None  # the HNSW struct (if any), for runtime efSearch tuning
 
     # -- lazy heavy resources ------------------------------------------------
     @property
@@ -108,7 +110,21 @@ class Searcher:
     def index(self) -> faiss.Index:
         if self._index is None:
             self._index = faiss.read_index(self.index_path)
+            # IndexIDMap2.index comes back as a base Index pointer — downcast to
+            # reach the concrete HNSW so efSearch is actually settable.
+            try:
+                inner = faiss.downcast_index(self._index.index)
+                if hasattr(inner, "hnsw"):
+                    inner.hnsw.efSearch = HNSW_EF_SEARCH
+                    self._hnsw = inner.hnsw
+            except Exception:  # noqa: BLE001 - flat index, nothing to tune
+                pass
         return self._index
+
+    def _ensure_ef(self, want: int) -> None:
+        """HNSW needs efSearch >= k to return k good results; bump if needed."""
+        if self._hnsw is not None and self._hnsw.efSearch < want:
+            self._hnsw.efSearch = want
 
     @property
     def model(self):
@@ -197,14 +213,15 @@ class Searcher:
     ) -> list[dict[str, Any]]:
         filters = filters or Filters()
         if fetch_k is None:
-            # Flat-index search cost is ~independent of k, so over-fetch freely
-            # when filtering so enough candidates survive.
-            fetch_k = 1500 if filters.any() else 200
+            # Over-fetch when filtering so enough candidates survive. Kept modest
+            # for HNSW (efSearch must track k); still ample for filtering.
+            fetch_k = 600 if filters.any() else 200
 
         with self._gpu_lock:
             qv = self.model.encode(
                 [QUERY_PREFIX + query], normalize_embeddings=True, convert_to_numpy=True
             ).astype("float32")
+        self._ensure_ef(max(fetch_k, k))
         scores, ids = self.index.search(qv, max(fetch_k, k))  # FAISS read is thread-safe
         id_list = [int(i) for i in ids[0] if i != -1]
         rows = self._fetch(id_list, filters)

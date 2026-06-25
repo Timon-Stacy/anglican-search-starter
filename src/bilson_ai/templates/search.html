@@ -11,7 +11,9 @@
   <button class="btn" type="submit">Search</button>
 </form>
 
-{% if q %}
+{% if rate_limited %}
+  <p class="error">You're searching too fast — please wait a moment and try again.</p>
+{% elif q %}
   <p class="muted">{{ results|length }} result(s) for &ldquo;{{ q }}&rdquo; &middot; {{ mode }} search</p>
   {% for r in results %}
     <article class="result">

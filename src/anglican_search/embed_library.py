@@ -45,7 +45,11 @@ from .config import (
     EMBEDDING_DIM,
     EMBEDDING_MODEL,
     EMBEDDING_TRUNCATE_DIM,
+    HNSW_EF_CONSTRUCTION,
+    HNSW_EF_SEARCH,
+    HNSW_M,
     INDEX_PATH,
+    INDEX_TYPE,
     PASSAGE_PREFIX,
 )
 from .pipeline import process_body
@@ -234,8 +238,14 @@ def load_index(path: str, dim: int) -> faiss.Index:
             )
         log(f"Loaded FAISS index with {idx.ntotal} vectors.")
         return idx
-    log("Creating new FAISS index (IndexIDMap2 over IndexFlatIP, cosine).")
-    return faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
+    if INDEX_TYPE == "flat":
+        log("Creating new FAISS index (IndexIDMap2 over IndexFlatIP, exact cosine).")
+        return faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
+    log(f"Creating new FAISS HNSW index (M={HNSW_M}, efC={HNSW_EF_CONSTRUCTION}, cosine).")
+    base = faiss.IndexHNSWFlat(dim, HNSW_M, faiss.METRIC_INNER_PRODUCT)
+    base.hnsw.efConstruction = HNSW_EF_CONSTRUCTION
+    base.hnsw.efSearch = HNSW_EF_SEARCH
+    return faiss.IndexIDMap2(base)
 
 
 def load_unembedded(conn: sqlite3.Connection, limit: int) -> list[tuple[int, str]]:

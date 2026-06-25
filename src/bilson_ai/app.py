@@ -6,6 +6,9 @@ The search model is loaded once at startup and shared by every request.
 
 from __future__ import annotations
 
+import os
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
+from anglican_search.batch import BatchedSearch
 from anglican_search.search import Filters, get_searcher
 
 from . import accounts
@@ -27,15 +31,47 @@ templates = Jinja2Templates(directory=str(_HERE / "templates"))
 templates.env.globals["brand"] = BRAND
 
 
+class RateLimiter:
+    """Simple in-memory sliding-window limiter (per process / single worker)."""
+
+    def __init__(self, max_hits: int, window_sec: float):
+        self.max = max_hits
+        self.window = window_sec
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits.setdefault(key, [])
+            cutoff = now - self.window
+            drop = 0
+            while drop < len(q) and q[drop] < cutoff:
+                drop += 1
+            if drop:
+                del q[:drop]
+            if len(q) >= self.max:
+                return False
+            q.append(now)
+            return True
+
+
+# Manual UI search throttle (the API path is metered separately by quota).
+_ui_limiter = RateLimiter(int(os.environ.get("BILSON_UI_RATE", "30")), 60.0)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     # Load + warm the search engine once (embedder + index + reranker), in the
     # main thread at startup — lazy-loading inside a request deadlocks.
     app.state.searcher = get_searcher()
+    app.state.batcher = None
     try:
         app.state.searcher.semantic("warmup", k=1, rerank=True)
-        print("[bilson] search engine ready.", flush=True)
+        # Dynamic micro-batching layer for the high-traffic search endpoints.
+        app.state.batcher = BatchedSearch(app.state.searcher)
+        print("[bilson] search engine ready (batched).", flush=True)
     except Exception as e:  # noqa: BLE001 - serve the site even if the index isn't built yet
         print(f"[bilson] search engine unavailable ({e}); /v1/search will error.", flush=True)
     yield
@@ -201,14 +237,22 @@ def search_page(request: Request, q: str = "", mode: str = "semantic", top_k: in
     if not user:
         return RedirectResponse("/login", status_code=303)
     results = []
+    rate_limited = False
     searcher = getattr(request.app.state, "searcher", None)
+    batcher = getattr(request.app.state, "batcher", None)
     if q.strip() and searcher is not None:
-        top_k = max(1, min(top_k, 25))
-        if mode == "literal":
-            results = searcher.literal(q, k=top_k)
+        if not _ui_limiter.allow(f"u{user['id']}"):
+            rate_limited = True
         else:
-            results = searcher.semantic(q, k=top_k, rerank=True)
-    return page(request, "search.html", q=q, mode=mode, top_k=top_k, results=results)
+            top_k = max(1, min(top_k, 25))
+            if mode == "literal":
+                results = searcher.literal(q, k=top_k)
+            elif batcher is not None:
+                results = batcher.search(q, k=top_k, rerank=True)
+            else:
+                results = searcher.semantic(q, k=top_k, rerank=True)
+    return page(request, "search.html", q=q, mode=mode, top_k=top_k,
+                results=results, rate_limited=rate_limited)
 
 
 @app.get("/library", response_class=HTMLResponse)
@@ -280,6 +324,7 @@ def api_search(req: SearchRequest, request: Request):
             {"error": "quota_exceeded", "used": used, "limit": limit}, status_code=429)
 
     searcher = getattr(request.app.state, "searcher", None)
+    batcher = getattr(request.app.state, "batcher", None)
     if searcher is None:
         return JSONResponse({"error": "search_unavailable"}, status_code=503)
 
@@ -289,6 +334,8 @@ def api_search(req: SearchRequest, request: Request):
     try:
         if req.mode == "literal":
             results = searcher.literal(req.query, k=top_k, filters=filters)
+        elif batcher is not None:
+            results = batcher.search(req.query, k=top_k, rerank=req.rerank, filters=filters)
         else:
             results = searcher.semantic(req.query, k=top_k, rerank=req.rerank, filters=filters)
     except Exception as e:  # noqa: BLE001
