@@ -32,8 +32,9 @@ INDEX_PATH = Path(os.environ.get("ANGLICAN_INDEX", str(PROJECT_ROOT / "index.fai
 # clear embeddings_status and rebuild index.faiss (re-embed). Re-chunking is NOT
 # needed (chunks are model-agnostic text; Qwen3's 32k context easily fits them).
 EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
-EMBEDDING_TRUNCATE_DIM = 512  # MRL truncation; set None to keep full 1024
-EMBEDDING_DIM = 512
+# Full native dimension (GPU-served, so no need to truncate for RAM/CPU speed).
+EMBEDDING_TRUNCATE_DIM = None  # set e.g. 512 to halve index size on a CPU box
+EMBEDDING_DIM = 1024
 QUERY_PREFIX = (
     "Instruct: Given a question about Christian theology, retrieve passages "
     "from historical Anglican texts that answer it\nQuery:"

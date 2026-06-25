@@ -16,6 +16,7 @@ import argparse
 import json
 import sqlite3
 import sys
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -82,13 +83,27 @@ class Searcher:
         self.index_path = index_path
         self.model_name = model_name
         self.reranker_name = reranker_name
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        # Per-thread SQLite connections — a single connection isn't safe to share
+        # across the threadpool threads serving concurrent requests.
+        self._local = threading.local()
+        # One GPU at serve time, so serialize inference: concurrent requests queue
+        # cleanly instead of contending on CUDA (which wouldn't parallelize anyway).
+        self._gpu_lock = threading.Lock()
         self._model = None
         self._index = None
         self._reranker = None
 
     # -- lazy heavy resources ------------------------------------------------
+    @property
+    def conn(self) -> sqlite3.Connection:
+        c = getattr(self._local, "conn", None)
+        if c is None:
+            c = sqlite3.connect(self.db_path, check_same_thread=False)
+            c.row_factory = sqlite3.Row
+            c.execute("PRAGMA busy_timeout = 5000")
+            self._local.conn = c
+        return c
+
     @property
     def index(self) -> faiss.Index:
         if self._index is None:
@@ -101,13 +116,16 @@ class Searcher:
             from sentence_transformers import SentenceTransformer
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            self._model = SentenceTransformer(
+            model = SentenceTransformer(
                 self.model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM
             )
-            if self._model.get_sentence_embedding_dimension() != self.index.d:
+            if device == "cuda":
+                model = model.half()  # fp16: faster inference + less VRAM
+            if model.get_sentence_embedding_dimension() != self.index.d:
                 raise RuntimeError(
                     "Model dim != index dim; index built with a different model."
                 )
+            self._model = model
         return self._model
 
     @property
@@ -116,7 +134,13 @@ class Searcher:
             from sentence_transformers import CrossEncoder
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            self._reranker = CrossEncoder(self.reranker_name, device=device)
+            ce = CrossEncoder(self.reranker_name, device=device)
+            if device == "cuda":
+                try:
+                    ce.model.half()  # fp16 reranker
+                except Exception:  # noqa: BLE001 - keep fp32 if unsupported
+                    pass
+            self._reranker = ce
         return self._reranker
 
     # -- helpers -------------------------------------------------------------
@@ -177,10 +201,11 @@ class Searcher:
             # when filtering so enough candidates survive.
             fetch_k = 1500 if filters.any() else 200
 
-        qv = self.model.encode(
-            [QUERY_PREFIX + query], normalize_embeddings=True, convert_to_numpy=True
-        ).astype("float32")
-        scores, ids = self.index.search(qv, max(fetch_k, k))
+        with self._gpu_lock:
+            qv = self.model.encode(
+                [QUERY_PREFIX + query], normalize_embeddings=True, convert_to_numpy=True
+            ).astype("float32")
+        scores, ids = self.index.search(qv, max(fetch_k, k))  # FAISS read is thread-safe
         id_list = [int(i) for i in ids[0] if i != -1]
         rows = self._fetch(id_list, filters)
 
@@ -189,7 +214,8 @@ class Searcher:
 
         if rerank and ordered:
             pool = ordered[:rerank_pool]
-            rr = self._rerank_scores(query, [rows[cid]["text"] for cid, _ in pool])
+            with self._gpu_lock:
+                rr = self._rerank_scores(query, [rows[cid]["text"] for cid, _ in pool])
             ranked = sorted(zip(pool, rr), key=lambda t: t[1], reverse=True)
             return [self._format(rows[cid], score) for (cid, _), score in ranked[:k]]
         return [self._format(rows[cid], s) for cid, s in ordered[:k]]
