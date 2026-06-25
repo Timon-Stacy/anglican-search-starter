@@ -9,11 +9,20 @@ from datetime import datetime, timezone
 from . import db
 
 # Maps source type -> the books-table column that stores its native id.
-SOURCE_COLUMN = {"ia": "ia_title_id", "gutenberg": "gutenberg_id", "google": "gb_title_id"}
+SOURCE_COLUMN = {"ia": "ia_title_id", "gutenberg": "gutenberg_id",
+                 "google": "gb_title_id", "hathi": "hathi_id"}
+
+# Sources we can fetch text for automatically; others are queued for manual import.
+AUTO_SOURCES = {"ia", "gutenberg"}
 
 
 def parse_source(url: str) -> tuple[str | None, str | None]:
-    """Detect the source + id from a submitted URL (mirrors download.py)."""
+    """Detect the source + id from a submitted URL (mirrors download.py).
+
+    IA and Gutenberg auto-import; Google Books and HathiTrust are accepted and
+    queued, but usually require an admin to paste the text (their full text isn't
+    freely downloadable).
+    """
     url = (url or "").strip()
     m = re.search(r"archive\.org/details/([^/?#]+)", url)
     if m:
@@ -21,8 +30,15 @@ def parse_source(url: str) -> tuple[str | None, str | None]:
     m = re.search(r"gutenberg\.org/ebooks/(\d+)", url)
     if m:
         return "gutenberg", m.group(1)
-    if "books.google." in url:
-        return "google", ""  # recognised, but not auto-importable
+    if "books.google." in url or "play.google.com/books" in url:
+        m = (re.search(r"/books/edition/[^/]+/([^?&/]+)", url)
+             or re.search(r"[?&]id=([^&]+)", url))
+        return "google", (m.group(1) if m else "")
+    if "hathitrust.org" in url or "hdl.handle.net/2027/" in url:
+        m = (re.search(r"[?&]id=([^&;]+)", url)
+             or re.search(r"/Record/(\w+)", url)
+             or re.search(r"/2027/([^?&/]+)", url))
+        return "hathi", (m.group(1) if m else "")
     return None, None
 
 
@@ -84,6 +100,15 @@ def get(sub_id: int) -> sqlite3.Row | None:
     conn = db.connect()
     try:
         return conn.execute("SELECT * FROM submissions WHERE id=?", (sub_id,)).fetchone()
+    finally:
+        conn.close()
+
+
+def set_title(sub_id: int, title: str) -> None:
+    conn = db.connect()
+    try:
+        conn.execute("UPDATE submissions SET title=? WHERE id=?", (title, sub_id))
+        conn.commit()
     finally:
         conn.close()
 

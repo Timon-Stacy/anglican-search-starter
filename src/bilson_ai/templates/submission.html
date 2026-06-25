@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Submission — {{ brand }}{% endblock %}
+{% block content %}
+<p><a href="/admin/queue">&larr; Queue</a></p>
+{% if not sub %}
+  <p class="muted">Submission not found.</p>
+{% else %}
+  <h2>Submission #{{ sub['id'] }}</h2>
+  <p class="meta">
+    {{ sub['source_type'] }}:{{ sub['source_id'] or '—' }} &middot; status <strong>{{ sub['status'] }}</strong><br>
+    <a href="{{ sub['url'] }}" target="_blank" rel="noopener">{{ sub['url'] }} &#8599;</a>
+  </p>
+  {% if sub['note'] %}<p>Note: {{ sub['note'] }}</p>{% endif %}
+  {% if sub['detail'] %}<p class="muted">{{ sub['detail'] }}</p>{% endif %}
+
+  <h3>Manual import</h3>
+  <p class="muted">Paste the book's plain text below — it'll be cleaned, chunked, embedded, and
+  added to the live index. Use this for Google Books / HathiTrust, or anything that couldn't be
+  downloaded automatically.</p>
+  <form method="post" action="/admin/queue/{{ sub['id'] }}/manual">
+    <label>Title (optional)
+      <input name="title" value="{{ sub['title'] or '' }}" maxlength="200">
+    </label>
+    <label>Text
+      <textarea name="text" rows="14" required placeholder="Paste the full text here…"></textarea>
+    </label>
+    <button class="btn" type="submit">Import this text</button>
+  </form>
+{% endif %}
+{% endblock %}

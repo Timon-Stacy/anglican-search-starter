@@ -1,11 +1,12 @@
 """Background importer: turns an approved submission into a live, searchable book.
 
-On approval a submission id is enqueued; a single worker thread downloads the
-source text, inserts the book + cleaned chunks into the library DB, embeds the
-new chunks, and adds them to the *live* FAISS index (so the book is immediately
-searchable — no restart). Failures are recorded on the submission; chunks still
-land in the DB (literal/FTS searchable) and can be embedded later by
-embed_library if the GPU step fails.
+IA / Gutenberg are fetched automatically. Google Books / HathiTrust can't be
+downloaded freely, so on approval they're marked 'needs_manual' and an admin
+pastes the text, which is ingested the same way. Either path: insert the book +
+cleaned chunks into the library DB, embed, and add to the *live* FAISS index so
+the book is immediately searchable (no restart). Failures are recorded on the
+submission; inserted chunks remain literal/FTS-searchable and can be embedded
+later by embed_library if the GPU step fails.
 """
 
 from __future__ import annotations
@@ -52,38 +53,63 @@ class Importer:
         self.db_path = db_path
         self.index_path = index_path
         self._count_tokens = None
-        self._q: queue.Queue[int] = queue.Queue()
+        self._q: queue.Queue[tuple[int, str | None]] = queue.Queue()
+        self._ensure_columns()
         threading.Thread(target=self._run, daemon=True, name="book-importer").start()
 
-    def enqueue(self, sub_id: int) -> None:
-        self._q.put(sub_id)
+    def _ensure_columns(self) -> None:
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(books)")}
+            if "hathi_id" not in cols:
+                conn.execute("ALTER TABLE books ADD COLUMN hathi_id TEXT")
+                conn.commit()
+        finally:
+            conn.close()
+
+    def enqueue(self, sub_id: int, text: str | None = None) -> None:
+        """Queue an auto-import (text=None) or a manual import (text supplied)."""
+        self._q.put((sub_id, text))
 
     def _run(self) -> None:
         while True:
-            sub_id = self._q.get()
+            sub_id, text = self._q.get()
             try:
-                self._import(sub_id)
+                if text is not None:
+                    self._ingest(sub_id, text, source_url=None)
+                else:
+                    self._auto(sub_id)
             except Exception as e:  # noqa: BLE001 - record on the submission
                 submissions.set_status(sub_id, "failed", str(e)[:300])
 
-    def _import(self, sub_id: int) -> None:
+    def _auto(self, sub_id: int) -> None:
         sub = submissions.get(sub_id)
         if not sub or sub["status"] != "approved":
             return
-        stype, sid = sub["source_type"], sub["source_id"]
-
-        text, url = fetch_text(stype, sid)
-        if not text:
-            submissions.set_status(sub_id, "failed", "download failed or unsupported source")
+        if sub["source_type"] not in submissions.AUTO_SOURCES:
+            submissions.set_status(sub_id, "needs_manual",
+                                   "auto-download unavailable — paste the text to import")
             return
+        text, url = fetch_text(sub["source_type"], sub["source_id"])
+        if not text:
+            submissions.set_status(sub_id, "failed", "download failed")
+            return
+        self._ingest(sub_id, text, source_url=url)
+
+    def _ingest(self, sub_id: int, text: str, source_url: str | None) -> None:
+        sub = submissions.get(sub_id)
+        if not sub:
+            return
+        stype, sid = sub["source_type"], sub["source_id"]
+        col = submissions.SOURCE_COLUMN.get(stype, "ia_title_id")
+        url = source_url or sub["url"]
 
         conn = sqlite3.connect(self.db_path)
         try:
-            col = submissions.SOURCE_COLUMN.get(stype)
             cur = conn.execute(
                 f"INSERT INTO books ({col}, title, category, source_url, content, status, approved) "
                 "VALUES (?,?,?,?,?, 'ok', 1)",
-                (sid, sub["title"] or sid, "Submitted", url, text),
+                (sid or None, sub["title"] or sid or url, "Submitted", url, text),
             )
             book_id = cur.lastrowid
             conn.commit()
@@ -91,6 +117,9 @@ class Importer:
             if self._count_tokens is None:
                 self._count_tokens = make_token_counter(self.searcher.model_name)
             chunks, _stats = process_body(text, self._count_tokens)
+            if not chunks:
+                submissions.set_status(sub_id, "failed", "no usable text after cleanup")
+                return
             conn.executemany(
                 "INSERT INTO chunks (book_id, chunk_index, start_char, end_char, text) "
                 "VALUES (?,?,?,?,?)",
@@ -105,7 +134,6 @@ class Importer:
 
         ids = [r[0] for r in rows]
         texts = [r[1] for r in rows]
-        # Embed + add to the live index, then persist + record embedding status.
         vectors = self.searcher.embed_passages(texts)
         self.searcher.add_to_index(ids, vectors)
         self.searcher.save_index(self.index_path)

@@ -311,19 +311,20 @@ def submit(request: Request, url: str = Form(...), title: str = Form(""), note: 
     stype, sid = submissions.parse_source(url)
     if stype is None:
         return page(request, "submit.html",
-                    error="Unrecognised link. Use an Internet Archive (archive.org/details/...) "
-                          "or Project Gutenberg (gutenberg.org/ebooks/...) URL.")
-    if stype == "google":
-        return page(request, "submit.html",
-                    error="Google Books links can't be imported automatically yet.")
+                    error="Unrecognised link. Use Internet Archive, Project Gutenberg, "
+                          "Google Books, or HathiTrust.")
     searcher = getattr(request.app.state, "searcher", None)
     if searcher is not None and submissions.in_library(searcher.conn, stype, sid):
         return page(request, "submit.html", info="That book is already in the library.")
     if submissions.existing(stype, sid):
         return page(request, "submit.html", info="That book has already been submitted.")
     submissions.create(user["id"], url.strip(), stype, sid, title, note)
-    return page(request, "submit.html",
-                info="Thanks! Your submission was added to the review queue.")
+    if stype in submissions.AUTO_SOURCES:
+        msg = "Thanks! Your submission was added to the review queue."
+    else:
+        msg = ("Thanks! Added to the queue. Google Books / HathiTrust text usually isn't "
+               "downloadable, so an admin may import it manually.")
+    return page(request, "submit.html", info=msg)
 
 
 @app.get("/admin/queue", response_class=HTMLResponse)
@@ -333,9 +334,18 @@ def admin_queue(request: Request):
         return RedirectResponse("/login", status_code=303)
     return page(request, "queue.html",
                 pending=submissions.by_status("pending"),
+                needs_manual=submissions.by_status("needs_manual"),
                 recent=(submissions.by_status("imported", 10)
                         + submissions.by_status("failed", 10)
                         + submissions.by_status("rejected", 10)))
+
+
+@app.get("/admin/queue/{sub_id}", response_class=HTMLResponse)
+def admin_submission(request: Request, sub_id: int):
+    user = current_user(request)
+    if not user or not user["is_admin"]:
+        return RedirectResponse("/login", status_code=303)
+    return page(request, "submission.html", sub=submissions.get(sub_id))
 
 
 @app.post("/admin/queue/{sub_id}")
@@ -352,6 +362,25 @@ def admin_queue_action(request: Request, sub_id: int, action: str = Form(...)):
             submissions.set_status(sub_id, "failed", "importer unavailable (index not loaded)")
     elif action == "reject":
         submissions.set_status(sub_id, "rejected")
+    return RedirectResponse("/admin/queue", status_code=303)
+
+
+@app.post("/admin/queue/{sub_id}/manual")
+def admin_manual_import(request: Request, sub_id: int,
+                        text: str = Form(...), title: str = Form("")):
+    user = current_user(request)
+    if not user or not user["is_admin"]:
+        return RedirectResponse("/login", status_code=303)
+    importer = getattr(request.app.state, "importer", None)
+    if importer is None:
+        submissions.set_status(sub_id, "failed", "importer unavailable (index not loaded)")
+        return RedirectResponse("/admin/queue", status_code=303)
+    if not text.strip():
+        return RedirectResponse(f"/admin/queue/{sub_id}", status_code=303)
+    if title.strip():
+        submissions.set_title(sub_id, title.strip())
+    submissions.set_status(sub_id, "approved")
+    importer.enqueue(sub_id, text=text)
     return RedirectResponse("/admin/queue", status_code=303)
 
 
