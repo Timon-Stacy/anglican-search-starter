@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Search — {{ brand }}{% endblock %}
+{% block content %}
+<h2>Search the library</h2>
+<form method="get" action="/search" class="search-form">
+  <input name="q" value="{{ q }}" placeholder="Search ~1,500 Anglican texts by meaning or keyword…" autofocus>
+  <select name="mode">
+    <option value="semantic" {% if mode == 'semantic' %}selected{% endif %}>Semantic</option>
+    <option value="literal" {% if mode == 'literal' %}selected{% endif %}>Literal</option>
+  </select>
+  <button class="btn" type="submit">Search</button>
+</form>
+
+{% if q %}
+  <p class="muted">{{ results|length }} result(s) for &ldquo;{{ q }}&rdquo; &middot; {{ mode }} search</p>
+  {% for r in results %}
+    <article class="result">
+      <h3><a href="/library/{{ r['book_id'] }}">{{ r['title'] }}</a></h3>
+      <p class="meta">
+        {{ r['author'] or 'Unknown' }}{% if r['year'] %} &middot; {{ r['year'] }}{% endif %}
+        {% if r['category'] %} &middot; {{ r['category'] }}{% endif %}
+        &middot; score {{ '%.2f'|format(r['score']) }}
+      </p>
+      <p class="passage">{{ r['text'] }}</p>
+      {% if r['url'] %}<a class="muted small" href="{{ r['url'] }}" target="_blank" rel="noopener">source &#8599;</a>{% endif %}
+    </article>
+  {% else %}
+    <p class="muted">No matches.</p>
+  {% endfor %}
+{% else %}
+  <p class="muted">Tip: semantic search finds passages by meaning; literal search matches exact words/phrases.</p>
+{% endif %}
+{% endblock %}

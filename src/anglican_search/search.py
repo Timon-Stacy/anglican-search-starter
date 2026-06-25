@@ -219,6 +219,59 @@ class Searcher:
     ) -> list[dict[str, Any]]:
         return self.semantic(query, k, **kw) if semantic else self.literal(query, k, **kw)
 
+    # -- browse (manual library exploration) --------------------------------
+    @staticmethod
+    def _browse_where(q: str | None, category: str | None) -> tuple[str, list[Any]]:
+        where = ["EXISTS (SELECT 1 FROM chunks c WHERE c.book_id = b.id)"]
+        params: list[Any] = []
+        if q:
+            where.append("(b.title LIKE ? OR b.author LIKE ?)")
+            params += [f"%{q}%", f"%{q}%"]
+        if category:
+            where.append("b.category = ?")
+            params.append(category)
+        return "WHERE " + " AND ".join(where), params
+
+    def categories(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT DISTINCT category FROM books "
+            "WHERE category IS NOT NULL AND category != '' ORDER BY category"
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def count_books(self, q: str | None = None, category: str | None = None) -> int:
+        where, params = self._browse_where(q, category)
+        return self.conn.execute(f"SELECT COUNT(*) FROM books b {where}", params).fetchone()[0]
+
+    def list_books(self, q: str | None = None, category: str | None = None,
+                   limit: int = 40, offset: int = 0) -> list[sqlite3.Row]:
+        where, params = self._browse_where(q, category)
+        return self.conn.execute(
+            f"""SELECT b.id, b.title, b.author, b.category, b.year, b.source_url,
+                       (SELECT COUNT(*) FROM chunks c WHERE c.book_id = b.id) AS n_chunks
+                FROM books b {where}
+                ORDER BY b.author, b.title LIMIT ? OFFSET ?""",
+            params + [limit, offset],
+        ).fetchall()
+
+    def get_book(self, book_id: int) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT id, title, author, category, year, publisher, source_url "
+            "FROM books WHERE id = ?", (book_id,)
+        ).fetchone()
+
+    def count_book_chunks(self, book_id: int) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM chunks WHERE book_id = ?", (book_id,)
+        ).fetchone()[0]
+
+    def book_chunks(self, book_id: int, limit: int = 25, offset: int = 0) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT chunk_index, text, start_char, end_char FROM chunks "
+            "WHERE book_id = ? ORDER BY chunk_index LIMIT ? OFFSET ?",
+            (book_id, limit, offset),
+        ).fetchall()
+
 
 # Module-level singleton so the model/index load once per process (MCP server).
 _searcher: Searcher | None = None

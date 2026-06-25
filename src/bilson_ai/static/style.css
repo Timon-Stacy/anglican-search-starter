@@ -92,4 +92,18 @@ code.key { display: block; margin-top: 8px; word-break: break-all; color: var(--
 footer { border-top: 1px solid var(--line); color: var(--muted); padding: 20px 28px; font-size: 13px; text-align: center; }
 footer a { color: var(--muted); }
 
+/* manual search + browse */
+.search-form { display: flex; gap: 8px; margin: 16px 0 24px; flex-wrap: wrap; }
+.search-form input[name="q"] { flex: 1; min-width: 240px; margin-top: 0; }
+.search-form select { background: #0d0f14; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; }
+.result { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 16px 18px; margin: 14px 0; }
+.result h3 { margin: 0 0 4px; font-size: 17px; }
+.result .meta, .meta { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.passage { margin: 0 0 8px; }
+.small { font-size: 13px; }
+.chunk { border-left: 2px solid var(--line); padding: 4px 0 4px 14px; margin: 14px 0; }
+.chunk .cidx { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+.chunk p { margin: 4px 0 0; }
+.pager { display: flex; gap: 16px; align-items: center; justify-content: center; margin: 24px 0; color: var(--muted); }
+
 @media (max-width: 680px) { .features { grid-template-columns: 1fr; } .hero h1 { font-size: 30px; } }

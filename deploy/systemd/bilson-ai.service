@@ -21,12 +21,13 @@ Environment=BILSON_DB=/home/anglican/anglican-search-starter/data/accounts.db
 Environment=BILSON_MONTHLY_LIMIT=1000
 # This email becomes an admin when it signs up (or use the admin CLI).
 Environment=BILSON_ADMIN_EMAIL=you@example.com
-# Search engine (shared, loaded once):
-Environment=ANGLICAN_DB=/home/anglican/anglican-search-starter/data/library-serve.db
+# Search engine (shared, loaded once). On the RTX 3060 box we use the full
+# GPU reranker. (For a CPU-only host instead: ANGLICAN_RERANKER=cross-encoder/
+# ms-marco-MiniLM-L-6-v2 and ANGLICAN_RERANK_POOL=30.)
+Environment=ANGLICAN_DB=/home/anglican/anglican-search-starter/data/library.db
 Environment=ANGLICAN_INDEX=/home/anglican/anglican-search-starter/data/index.faiss
-Environment=ANGLICAN_RERANKER=cross-encoder/ms-marco-MiniLM-L-6-v2
-Environment=ANGLICAN_RERANK_POOL=30
-Environment=HF_HUB_OFFLINE=1
+Environment=ANGLICAN_RERANKER=BAAI/bge-reranker-v2-m3
+Environment=ANGLICAN_RERANK_POOL=80
 ExecStart=/home/anglican/.local/bin/uv run bilson-ai
 Restart=on-failure
 RestartSec=5

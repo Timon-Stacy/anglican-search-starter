@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ book['title'] if book else 'Not found' }} — {{ brand }}{% endblock %}
+{% block content %}
+<p><a href="/library">&larr; Library</a></p>
+{% if not book %}
+  <p class="muted">Book not found.</p>
+{% else %}
+  <h2>{{ book['title'] }}</h2>
+  <p class="meta">
+    {{ book['author'] or 'Unknown' }}{% if book['year'] %} &middot; {{ book['year'] }}{% endif %}
+    {% if book['category'] %} &middot; {{ book['category'] }}{% endif %}
+    {% if book['publisher'] %} &middot; {{ book['publisher'] }}{% endif %}
+  </p>
+  {% if book['source_url'] %}<p><a href="{{ book['source_url'] }}" target="_blank" rel="noopener">View original source &#8599;</a></p>{% endif %}
+  <p class="muted">{{ total }} passages (cleaned OCR).</p>
+
+  {% for c in chunks %}
+    <article class="chunk">
+      <span class="cidx">#{{ c['chunk_index'] }}</span>
+      <p>{{ c['text'] }}</p>
+    </article>
+  {% endfor %}
+
+  {% set pages = (total // per) + (1 if total % per else 0) %}
+  {% if pages > 1 %}
+  <div class="pager">
+    {% if p > 1 %}<a href="/library/{{ book['id'] }}?p={{ p - 1 }}">&larr; prev</a>{% endif %}
+    <span>page {{ p }} / {{ pages }}</span>
+    {% if p < pages %}<a href="/library/{{ book['id'] }}?p={{ p + 1 }}">next &rarr;</a>{% endif %}
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

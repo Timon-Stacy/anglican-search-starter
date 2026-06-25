@@ -194,6 +194,56 @@ def admin_update(request: Request, user_id: int, action: str = Form(...),
     return RedirectResponse("/admin", status_code=303)
 
 
+# --- manual UI: search + browse (logged-in users) -------------------------
+@app.get("/search", response_class=HTMLResponse)
+def search_page(request: Request, q: str = "", mode: str = "semantic", top_k: int = 10):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    results = []
+    searcher = getattr(request.app.state, "searcher", None)
+    if q.strip() and searcher is not None:
+        top_k = max(1, min(top_k, 25))
+        if mode == "literal":
+            results = searcher.literal(q, k=top_k)
+        else:
+            results = searcher.semantic(q, k=top_k, rerank=True)
+    return page(request, "search.html", q=q, mode=mode, top_k=top_k, results=results)
+
+
+@app.get("/library", response_class=HTMLResponse)
+def library(request: Request, q: str = "", category: str = "", p: int = 1):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    searcher = getattr(request.app.state, "searcher", None)
+    per = 40
+    if searcher is None:
+        return page(request, "library.html", books=[], total=0, categories=[],
+                    q=q, category=category, p=1, per=per)
+    p = max(1, p)
+    return page(request, "library.html",
+                books=searcher.list_books(q or None, category or None, per, (p - 1) * per),
+                total=searcher.count_books(q or None, category or None),
+                categories=searcher.categories(), q=q, category=category, p=p, per=per)
+
+
+@app.get("/library/{book_id}", response_class=HTMLResponse)
+def book_detail(request: Request, book_id: int, p: int = 1):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    searcher = getattr(request.app.state, "searcher", None)
+    book = searcher.get_book(book_id) if searcher else None
+    if not book:
+        return page(request, "book.html", book=None, chunks=[], total=0, p=1, per=25)
+    per = 25
+    p = max(1, p)
+    return page(request, "book.html", book=book,
+                chunks=searcher.book_chunks(book_id, per, (p - 1) * per),
+                total=searcher.count_book_chunks(book_id), p=p, per=per)
+
+
 # --- REST API --------------------------------------------------------------
 class SearchRequest(BaseModel):
     query: str

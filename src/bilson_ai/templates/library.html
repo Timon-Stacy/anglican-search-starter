@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Library — {{ brand }}{% endblock %}
+{% block content %}
+<h2>Library</h2>
+<form method="get" action="/library" class="search-form">
+  <input name="q" value="{{ q }}" placeholder="Filter by title or author…">
+  <select name="category">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Filter</button>
+</form>
+<p class="muted">{{ total }} book(s).</p>
+<table>
+  <thead><tr><th>Title</th><th>Author</th><th>Year</th><th>Category</th><th>Passages</th></tr></thead>
+  <tbody>
+  {% for b in books %}
+    <tr>
+      <td><a href="/library/{{ b['id'] }}">{{ b['title'] }}</a></td>
+      <td>{{ b['author'] or '—' }}</td>
+      <td>{{ b['year'] or '—' }}</td>
+      <td>{{ b['category'] or '—' }}</td>
+      <td>{{ b['n_chunks'] }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">No books match.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% set pages = (total // per) + (1 if total % per else 0) %}
+{% if pages > 1 %}
+<div class="pager">
+  {% if p > 1 %}<a href="/library?q={{ q }}&amp;category={{ category }}&amp;p={{ p - 1 }}">&larr; prev</a>{% endif %}
+  <span>page {{ p }} / {{ pages }}</span>
+  {% if p < pages %}<a href="/library?q={{ q }}&amp;category={{ category }}&amp;p={{ p + 1 }}">next &rarr;</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
