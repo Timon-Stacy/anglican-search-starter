@@ -42,13 +42,14 @@ RUN python -m pip install --upgrade pip \
       "fastapi>=0.110" "uvicorn>=0.27" "jinja2>=3.1" \
       "python-multipart>=0.0.9" "itsdangerous>=2.1"
 
-COPY src ./src
-COPY scripts ./scripts
-
 # Pre-bake embedder + reranker into the image so the first query is fast and the
-# running container needs no Hugging Face egress.
+# running container needs no Hugging Face egress. Done BEFORE copying src so a
+# code change doesn't re-download the models — only the cheap COPY layers rebuild.
 RUN python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; \
 SentenceTransformer('Qwen/Qwen3-Embedding-0.6B'); CrossEncoder('BAAI/bge-reranker-v2-m3')"
+
+COPY src ./src
+COPY scripts ./scripts
 
 # /data holds the (repaired) library DB, the FAISS index, and accounts.db.
 VOLUME ["/data"]
