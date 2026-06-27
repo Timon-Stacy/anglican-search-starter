@@ -43,6 +43,12 @@ compose, and these ports open in the provider firewall: **80/tcp, 443/tcp,
 
 ---
 
+**Order:** Steps 1 and 4 (stage the DB, build the image, verify the Arc GPU, build
+the index, optional local smoke test) don't need the tunnel — do them first to
+prove the GPU and app work. Steps 2, 3, 5, 6 then wire up public access through
+the VPS. Home's `wg0.conf` needs the VPS's public key, which is why the VPS comes
+up (Step 3) before the home stack (Step 5).
+
 ## Step 1 — Put the repaired DB in place (home)
 
 You already produced `library-clean.db` (the repaired copy). Stage it as the
@@ -84,21 +90,25 @@ docker compose logs -f wireguard          # confirm the interface comes up
 
 Caddy won't get a cert until the home app is reachable, which is fine for now.
 
-## Step 4 — Build the image and the FAISS index (home)
+## Step 4 — Build the image, verify the GPU, build the index (home)
+
+These run on the default network via the `engine` one-off service — no tunnel
+needed yet, so you can do all of this before touching WireGuard.
 
 ```bash
 cd deploy/docker/home
 cp .env.example .env && nano .env         # set BILSON_SECRET, BILSON_ADMIN_EMAIL, BILSON_PUBLIC_URL, IPEX_TAG
 
-# Build the Arc image.
-docker compose build
+# Build the Arc image (tagged anglican-bilson-xpu:latest, reused by `engine`).
+docker compose build bilson
 
-# PROVE the GPU works inside the container before the long embed run:
-docker compose run --rm --no-deps bilson python scripts/check_env.py
+# PROVE the Arc GPU works inside the container before the long embed run:
+docker compose run --rm engine python scripts/check_env.py
 #   -> must print: backend : XPU (Intel Arc ...) and "GPU matmul OK"
+#   If it prints CPU instead, fix the host Intel driver / /dev/dri passthrough first.
 
 # Build the index once (writes /data/index.faiss). 6 GB VRAM -> small batch.
-docker compose run --rm --no-deps bilson \
+docker compose run --rm engine \
   python -m anglican_search.embed_library --phase all --encode-batch 64
 ```
 
@@ -106,11 +116,21 @@ The embed is resumable — if it stops, re-run the same command and it continues
 from the last saved window. ~1.23M chunks; watch the `embedded N/1230281 ... ETA`
 log. If you hit OOM, drop `--encode-batch` to 32.
 
-## Step 5 — Start the home stack
+### Optional — smoke-test the app locally before wiring the tunnel
+
+```bash
+docker compose run --rm -p 8001:8001 engine python -m bilson_ai.app &
+sleep 60 && curl -s http://127.0.0.1:8001/health    # {"status":"ok","search_engine":"ready"}
+# Ctrl-C / docker stop the run when done.
+```
+
+## Step 5 — Start the home stack (with the tunnel)
+
+This needs `home/wireguard/wg0.conf` filled in (Step 2) and the VPS up (Step 3).
 
 ```bash
 cd deploy/docker/home
-docker compose up -d
+docker compose up -d                      # starts wireguard + bilson
 docker compose logs -f bilson             # wait for: "[bilson] ready: MCP (/mcp) + REST (/v1) + website"
 ```
 

@@ -60,5 +60,21 @@ services:
       start_period: 120s   # model warmup on first boot
     restart: unless-stopped
 
+  # One-off GPU tasks (verify the Arc, build the index). Same image as `bilson`
+  # but on the default network — NOT tied to the wireguard tunnel — so it runs
+  # before any tunnel exists. It's in the "tools" profile so `docker compose up`
+  # never starts it; invoke it explicitly with `docker compose run --rm engine`.
+  engine:
+    image: anglican-bilson-xpu:latest
+    profiles: ["tools"]
+    devices:
+      - /dev/dri:/dev/dri
+    env_file: .env
+    volumes:
+      - ./data:/data
+      - hf_cache:/opt/hf-cache
+    # No command here — pass one to `docker compose run`, e.g.
+    #   docker compose run --rm engine python scripts/check_env.py
+
 volumes:
   hf_cache:
