@@ -74,8 +74,27 @@ def select_device(preferred: str | None = None) -> str:
 
 def supports_fp16(device: str) -> bool:
     """fp16 inference is a throughput/VRAM win on both GPU backends; skip on CPU
-    (fp16 on CPU is slow and can be numerically worse)."""
+    (fp16 on CPU is slow and can be numerically worse). Escape hatch: set
+    ANGLICAN_FP16=0 to force fp32 everywhere (e.g. to rule fp16 out when debugging
+    an XPU kernel error)."""
+    if os.environ.get("ANGLICAN_FP16", "1") == "0":
+        return False
     return device in ("cuda", "xpu")
+
+
+def model_load_kwargs(device: str) -> dict:
+    """Extra `from_pretrained` kwargs per backend (passed through SentenceTransformer
+    / CrossEncoder as model_kwargs).
+
+    Intel XPU's fused scaled-dot-product-attention kernel raises a oneAPI
+    "UR error" on the Qwen3 / XLM-RoBERTa forward pass, so force the eager
+    attention path there. CUDA keeps SDPA (FlashAttention) for speed. Override
+    with ANGLICAN_ATTN (e.g. "sdpa", "eager", "flash_attention_2").
+    """
+    attn = os.environ.get("ANGLICAN_ATTN", "").strip()
+    if not attn:
+        attn = "eager" if device == "xpu" else ""
+    return {"attn_implementation": attn} if attn else {}
 
 
 def synchronize(device: str) -> None:

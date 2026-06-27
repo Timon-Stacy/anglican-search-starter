@@ -35,7 +35,7 @@ from .config import (
     RERANKER_MODEL,
     SQLITE_MMAP_BYTES,
 )
-from .device import select_device, supports_fp16
+from .device import model_load_kwargs, select_device, supports_fp16
 
 
 @dataclass
@@ -139,7 +139,8 @@ class Searcher:
 
             device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
             model = SentenceTransformer(
-                self.model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM
+                self.model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM,
+                model_kwargs=model_load_kwargs(device) or None,
             )
             if supports_fp16(device):
                 model = model.half()  # fp16: faster inference + less VRAM
@@ -156,7 +157,12 @@ class Searcher:
             from sentence_transformers import CrossEncoder
 
             device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
-            ce = CrossEncoder(self.reranker_name, device=device)
+            mkw = model_load_kwargs(device) or None
+            try:
+                ce = CrossEncoder(self.reranker_name, device=device, model_kwargs=mkw)
+            except TypeError:
+                # Older CrossEncoder has no model_kwargs param; eager not forced.
+                ce = CrossEncoder(self.reranker_name, device=device)
             if supports_fp16(device):
                 try:
                     ce.model.half()  # fp16 reranker

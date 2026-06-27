@@ -51,7 +51,7 @@ from .config import (
     INDEX_TYPE,
     PASSAGE_PREFIX,
 )
-from .device import select_device, supports_fp16
+from .device import model_load_kwargs, select_device, supports_fp16
 from .pipeline import process_body
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -289,7 +289,10 @@ def embed_phase(
         return
 
     device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
-    model = SentenceTransformer(model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM)
+    model = SentenceTransformer(
+        model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM,
+        model_kwargs=model_load_kwargs(device) or None,
+    )
     if fp16 and supports_fp16(device):
         model = model.half()  # ~2x throughput, half VRAM; fine for inference
     try:

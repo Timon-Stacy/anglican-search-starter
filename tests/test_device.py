@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from anglican_search.device import _choose, supports_fp16
+from anglican_search.device import _choose, model_load_kwargs, supports_fp16
 
 
 # --- autodetection (no forced device) -------------------------------------
@@ -57,10 +57,41 @@ def test_force_xpu_unavailable_no_gpu_falls_back_to_cpu():
 
 
 # --- fp16 policy ----------------------------------------------------------
-def test_fp16_enabled_on_gpu_backends():
+def test_fp16_enabled_on_gpu_backends(monkeypatch):
+    monkeypatch.delenv("ANGLICAN_FP16", raising=False)
     assert supports_fp16("cuda")
     assert supports_fp16("xpu")
 
 
-def test_fp16_disabled_on_cpu():
+def test_fp16_disabled_on_cpu(monkeypatch):
+    monkeypatch.delenv("ANGLICAN_FP16", raising=False)
     assert not supports_fp16("cpu")
+
+
+def test_fp16_env_kill_switch(monkeypatch):
+    monkeypatch.setenv("ANGLICAN_FP16", "0")
+    assert not supports_fp16("cuda")
+    assert not supports_fp16("xpu")
+    assert not supports_fp16("cpu")
+
+
+# --- attention backend (the XPU "UR error" fix) ---------------------------
+def test_xpu_forces_eager_attention(monkeypatch):
+    monkeypatch.delenv("ANGLICAN_ATTN", raising=False)
+    assert model_load_kwargs("xpu") == {"attn_implementation": "eager"}
+
+
+def test_cuda_keeps_default_sdpa(monkeypatch):
+    monkeypatch.delenv("ANGLICAN_ATTN", raising=False)
+    assert model_load_kwargs("cuda") == {}
+
+
+def test_cpu_no_extra_kwargs(monkeypatch):
+    monkeypatch.delenv("ANGLICAN_ATTN", raising=False)
+    assert model_load_kwargs("cpu") == {}
+
+
+def test_attn_env_override_applies_to_all(monkeypatch):
+    monkeypatch.setenv("ANGLICAN_ATTN", "sdpa")
+    assert model_load_kwargs("xpu") == {"attn_implementation": "sdpa"}
+    assert model_load_kwargs("cuda") == {"attn_implementation": "sdpa"}
