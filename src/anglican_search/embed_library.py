@@ -35,7 +35,6 @@ from functools import lru_cache
 
 import faiss
 import numpy as np
-import torch
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
@@ -52,6 +51,7 @@ from .config import (
     INDEX_TYPE,
     PASSAGE_PREFIX,
 )
+from .device import select_device, supports_fp16
 from .pipeline import process_body
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -288,9 +288,9 @@ def embed_phase(
         log("Everything already embedded.")
         return
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
     model = SentenceTransformer(model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM)
-    if device == "cuda" and fp16:
+    if fp16 and supports_fp16(device):
         model = model.half()  # ~2x throughput, half VRAM; fine for inference
     try:
         dim = model.get_embedding_dimension()

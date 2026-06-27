@@ -34,6 +34,25 @@ uv sync
 uv run python scripts/check_env.py        # verify GPU / dependencies
 ```
 
+### Compute backends (Nvidia / Intel Arc / CPU)
+
+The engine auto-detects the accelerator at runtime (`anglican_search/device.py`):
+`cuda` (Nvidia) → `xpu` (Intel Arc) → `cpu`. Only the embedder and reranker move
+to the GPU; FAISS always runs on CPU, so the search path is identical everywhere.
+Force a backend with `ANGLICAN_DEVICE=cuda|xpu|cpu`.
+
+`uv sync` installs the Nvidia (cu128) build. For other hardware, install the
+matching torch wheel instead of syncing torch:
+
+| Hardware | Install | Notes |
+|---|---|---|
+| Nvidia (default) | `uv sync` | cu128 wheels (Blackwell-capable) |
+| **Intel Arc (e.g. A380)** | `bash deploy/gpu_setup_arc.sh` | XPU wheels; needs the Intel GPU driver/runtime on the host |
+| CPU-only serving | `bash deploy/serve_setup.sh` | cpu wheels |
+
+Verify the GPU actually runs a kernel: `ANGLICAN_DEVICE=xpu uv run python
+scripts/check_env.py` (it prints the detected device and a matmul checksum).
+
 ## Build the index
 
 `library.db` (the SQLite store with cleaned chunks) is the input.

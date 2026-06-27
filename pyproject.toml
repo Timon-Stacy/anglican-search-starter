@@ -29,6 +29,10 @@ web = [
     "python-multipart>=0.0.9",
     "itsdangerous>=2.1",
 ]
+# Gate-test lane (deterministic, fast, no GPU/network). Run: uv run pytest
+dev = [
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,11 +41,30 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/anglican_search", "src/bilson_ai"]
 
-# Pull torch from the CUDA 12.8 index so we get Blackwell-capable wheels.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+# torch backends. `uv sync` uses the default below (Nvidia cu128, Blackwell).
+# For other hardware, install torch from the matching index instead of syncing
+# torch from cu128 (the engine auto-detects the device at runtime — see
+# anglican_search/device.py):
+#   Intel Arc (XPU):  uv pip install torch --index-url https://download.pytorch.org/whl/xpu
+#                     (or run deploy/gpu_setup_arc.sh)
+#   CPU-only serve:   uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+#                     (or run deploy/serve_setup.sh)
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
+# Intel Arc / Data Center GPU wheels (used by deploy/gpu_setup_arc.sh).
+[[tool.uv.index]]
+name = "pytorch-xpu"
+url = "https://download.pytorch.org/whl/xpu"
+explicit = true
+
 [tool.uv.sources]
+# Default for `uv sync`: the Nvidia build. Arc/CPU boxes install torch
+# explicitly from their index (above) and do not sync torch from here.
 torch = { index = "pytorch-cu128" }

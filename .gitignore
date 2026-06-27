@@ -24,3 +24,7 @@ models/
 .vscode/
 .idea/
 .DS_Store
+
+# Local agent config / instructions — never publish
+.claude/
+CLAUDE.md

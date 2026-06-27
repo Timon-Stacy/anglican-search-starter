@@ -22,7 +22,6 @@ from typing import Any
 
 import faiss
 import numpy as np
-import torch
 
 from .config import (
     DB_PATH,
@@ -36,6 +35,7 @@ from .config import (
     RERANKER_MODEL,
     SQLITE_MMAP_BYTES,
 )
+from .device import select_device, supports_fp16
 
 
 @dataclass
@@ -137,11 +137,11 @@ class Searcher:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
             model = SentenceTransformer(
                 self.model_name, device=device, truncate_dim=EMBEDDING_TRUNCATE_DIM
             )
-            if device == "cuda":
+            if supports_fp16(device):
                 model = model.half()  # fp16: faster inference + less VRAM
             if model.get_sentence_embedding_dimension() != self.index.d:
                 raise RuntimeError(
@@ -155,9 +155,9 @@ class Searcher:
         if self._reranker is None:
             from sentence_transformers import CrossEncoder
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
             ce = CrossEncoder(self.reranker_name, device=device)
-            if device == "cuda":
+            if supports_fp16(device):
                 try:
                     ce.model.half()  # fp16 reranker
                 except Exception:  # noqa: BLE001 - keep fp32 if unsupported
