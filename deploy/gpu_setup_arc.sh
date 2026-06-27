@@ -57,7 +57,7 @@ print("models cached")
 PY
 
 echo
-echo "[setup] done. Build the index on the Arc GPU with:"
-echo "  ANGLICAN_DEVICE=xpu uv run python -m anglican_search.embed_library --phase all"
-echo "The A380 has 6 GB VRAM — if you hit OOM, lower the batch size, e.g.:"
-echo "  ANGLICAN_DEVICE=xpu uv run python -m anglican_search.embed_library --phase embed --encode-batch 64"
+echo "[setup] done. Build the index on the Arc GPU with a small batch (XPU uses"
+echo "eager attention, and the A380 has only ~6 GB VRAM — 16 is a safe default):"
+echo "  ANGLICAN_DEVICE=xpu uv run python -m anglican_search.embed_library --phase all --encode-batch 16"
+echo "On 'XPU out of memory', halve it (8); to go faster if it's stable, try 24."

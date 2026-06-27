@@ -56,6 +56,7 @@ VOLUME ["/data"]
 EXPOSE 8001
 
 # Default: serve. Override the command for a one-off index build, e.g.
-#   docker compose run --rm --no-deps bilson \
-#     python -m anglican_search.embed_library --phase all --encode-batch 64
+#   docker compose run --rm engine \
+#     python -m anglican_search.embed_library --phase all --encode-batch 16
+# (A380 = ~6 GB + eager attention on XPU, so keep the embed batch small.)
 CMD ["python", "-m", "bilson_ai.app"]

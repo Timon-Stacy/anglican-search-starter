@@ -107,14 +107,17 @@ docker compose run --rm engine python scripts/check_env.py
 #   -> must print: backend : XPU (Intel Arc ...) and "GPU matmul OK"
 #   If it prints CPU instead, fix the host Intel driver / /dev/dri passthrough first.
 
-# Build the index once (writes /data/index.faiss). 6 GB VRAM -> small batch.
+# Build the index once (writes /data/index.faiss). The A380 has only ~6 GB, and
+# XPU uses eager attention (it materializes the seq×seq score matrix), so keep the
+# batch small: 16 is a safe default, 8 if it still OOMs, 24 if you want it faster.
 docker compose run --rm engine \
-  python -m anglican_search.embed_library --phase all --encode-batch 64
+  python -m anglican_search.embed_library --phase all --encode-batch 16
 ```
 
-The embed is resumable — if it stops, re-run the same command and it continues
-from the last saved window. ~1.23M chunks; watch the `embedded N/1230281 ... ETA`
-log. If you hit OOM, drop `--encode-batch` to 32.
+The embed is resumable — if it stops (or you lower the batch and re-run), it
+continues from the last saved window. ~1.23M chunks; watch the
+`embedded N/1230281 ... ETA` log. On `XPU out of memory`, halve `--encode-batch`.
+If fragmentation bites near the limit, add `-e PYTORCH_XPU_ALLOC_CONF=expandable_segments:True`.
 
 ### Optional — smoke-test the app locally before wiring the tunnel
 
