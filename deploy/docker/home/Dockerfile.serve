@@ -1,0 +1,60 @@
+# Serving image for the HOME box (Intel Arc, e.g. A380): runs the full Bilson AI
+# app (search engine + MCP /mcp + REST /v1 + website) on the Arc GPU via XPU.
+#
+# Base = Intel's prebuilt Extension-for-PyTorch XPU image, which already ships a
+# matched torch+XPU runtime and the Intel oneAPI user-mode libraries. We do NOT
+# install torch ourselves here (that would pull the cu128 Nvidia build the
+# project pins for `uv sync`). The engine auto-detects the device at runtime and
+# ANGLICAN_DEVICE=xpu pins it to the Arc GPU (anglican_search/device.py).
+#
+#   VERIFY THE TAG before building — pick the current one from
+#   https://hub.docker.com/r/intel/intel-extension-for-pytorch/tags
+#   (look for a recent "*-xpu" tag). Override at build time with:
+#     docker build --build-arg IPEX_TAG=2.7.10-xpu -f Dockerfile.serve ...
+#
+# The container reaches the Arc GPU through the host's /dev/dri device (passed in
+# by docker-compose) plus the host i915 kernel driver — see deploy/docker/README.md.
+ARG IPEX_TAG=2.7.10-xpu
+FROM intel/intel-extension-for-pytorch:${IPEX_TAG}
+
+USER root
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/opt/hf-cache \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    PYTHONPATH=/app/src \
+    ANGLICAN_DEVICE=xpu \
+    ANGLICAN_DB=/data/library.db \
+    ANGLICAN_INDEX=/data/index.faiss \
+    BILSON_HOST=0.0.0.0 \
+    BILSON_PORT=8001
+
+WORKDIR /app
+
+# App + web deps only. torch stays as the base image's XPU build (these all
+# already accept the installed torch, so pip won't replace it). We run the
+# package straight from /app/src via PYTHONPATH, so there's no editable install
+# and no requires-python clash with the base image's Python.
+RUN python -m pip install --upgrade pip \
+ && python -m pip install \
+      "sentence-transformers>=3.0" "faiss-cpu>=1.8" "mcp>=1.2" \
+      "transformers>=4.40" "pyspellchecker>=0.9.0" "numpy>=1.26" "tqdm>=4.66" \
+      "fastapi>=0.110" "uvicorn>=0.27" "jinja2>=3.1" \
+      "python-multipart>=0.0.9" "itsdangerous>=2.1"
+
+COPY src ./src
+COPY scripts ./scripts
+
+# Pre-bake embedder + reranker into the image so the first query is fast and the
+# running container needs no Hugging Face egress.
+RUN python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; \
+SentenceTransformer('Qwen/Qwen3-Embedding-0.6B'); CrossEncoder('BAAI/bge-reranker-v2-m3')"
+
+# /data holds the (repaired) library DB, the FAISS index, and accounts.db.
+VOLUME ["/data"]
+EXPOSE 8001
+
+# Default: serve. Override the command for a one-off index build, e.g.
+#   docker compose run --rm --no-deps bilson \
+#     python -m anglican_search.embed_library --phase all --encode-batch 64
+CMD ["python", "-m", "bilson_ai.app"]

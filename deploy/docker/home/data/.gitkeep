@@ -1,0 +1,5 @@
+# Put the data the app serves here (this directory is mounted at /data):
+#   library.db    - the repaired DB (cp ../../../../library-clean.db ./library.db)
+#   index.faiss   - built once by the embed step (see deploy/docker/README.md)
+#   accounts.db   - created automatically on first run
+# These are gitignored (*.db / *.faiss), so they never get committed.

@@ -1,0 +1,18 @@
+# VPS edge: automatic HTTPS, proxy everything to the home app over the tunnel.
+# DOMAIN and ACME_EMAIL come from .env. The home app does its own auth (sessions
+# for the site, API keys + quota for /v1 and /mcp), so Caddy just does TLS + proxy.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The home app serves the website, REST API (/v1), and MCP (/mcp) all on
+	# :8001, reached here at the home box's WireGuard address.
+	reverse_proxy 10.8.0.2:8001 {
+		# Pass the real client info through the tunnel to the app.
+		header_up X-Forwarded-Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}

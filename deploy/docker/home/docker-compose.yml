@@ -1,0 +1,64 @@
+# HOME box (Intel Arc A380). Runs the whole app on the GPU and dials OUT to the
+# VPS over WireGuard, so the home box needs no public IP and no port-forwarding.
+#
+# Two containers:
+#   wireguard  - the tunnel to the VPS (this box is the dialing peer).
+#   bilson     - the app; shares the wireguard container's network namespace, so
+#                from the VPS it's reachable at the home WG IP (e.g. 10.8.0.2:8001).
+#
+# The app is intentionally NOT published to the host's public interfaces — the
+# only way in is through the encrypted tunnel.
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: anglican-wg
+    cap_add: [NET_ADMIN, SYS_MODULE]
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      # Put your filled-in wg0.conf here (see wireguard/wg0.conf.example).
+      - ./wireguard:/config/wg_confs
+      - /lib/modules:/lib/modules:ro
+    # Expose 8001 on the host's LOOPBACK only, for local health checks/debug.
+    # (The VPS does not use this; it reaches the app over the tunnel.)
+    ports:
+      - "127.0.0.1:8001:8001"
+    restart: unless-stopped
+
+  bilson:
+    build:
+      # Build context is the repo root so the image can COPY src/ and scripts/.
+      context: ../../..
+      dockerfile: deploy/docker/home/Dockerfile.serve
+      args:
+        IPEX_TAG: ${IPEX_TAG:-2.7.10-xpu}
+    image: anglican-bilson-xpu:latest
+    container_name: anglican-bilson
+    # Run inside the wireguard netns so the app is reachable over the tunnel.
+    network_mode: "service:wireguard"
+    depends_on: [wireguard]
+    # Intel Arc GPU passthrough. The container runs as root, which can access
+    # /dev/dri without a render-group membership.
+    devices:
+      - /dev/dri:/dev/dri
+    env_file: .env
+    volumes:
+      # library.db (the repaired copy), index.faiss, and accounts.db live here.
+      - ./data:/data
+      # Persist the Hugging Face cache across rebuilds (models are also baked in).
+      - hf_cache:/opt/hf-cache
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8001/health',timeout=5).status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # model warmup on first boot
+    restart: unless-stopped
+
+volumes:
+  hf_cache:

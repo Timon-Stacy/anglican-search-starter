@@ -28,3 +28,10 @@ models/
 # Local agent config / instructions — never publish
 .claude/
 CLAUDE.md
+
+# Secrets / local deploy config (keep only the *.example files)
+.env
+**/.env
+**/wireguard/wg0.conf
+*.key
+*.pub

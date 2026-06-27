@@ -118,6 +118,8 @@ BILSON_SECRET=$(openssl rand -hex 32) uv run bilson-ai   # serves on 127.0.0.1:8
 
 ## Deployment
 
-- **Build the index** on a GPU (Kubernetes job or notebook): [deploy/README.md](deploy/README.md).
+- **Docker: Intel Arc home box + cloud VPS edge over WireGuard** (the GPU runs at
+  home, a cheap VPS is the public TLS edge): [deploy/docker/README.md](deploy/docker/README.md).
+- **Build the index** on an Nvidia GPU (Kubernetes job or notebook): [deploy/README.md](deploy/README.md).
 - **Host the service** on a CPU box (specs, providers, slim DB, TLS): [deploy/SERVE.md](deploy/SERVE.md).
 - **Full server runbook** (Bilson AI + systemd + Caddy + admin, step by step): [deploy/SETUP.md](deploy/SETUP.md).

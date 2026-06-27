@@ -1,0 +1,17 @@
+# HOME peer (the dialing side). Copy to wg0.conf and fill in the keys + VPS IP.
+# Generate this box's keys:  wg genkey | tee home.key | wg pubkey > home.pub
+# Give home.pub to the VPS peer; put the VPS's public key below.
+#
+# Split tunnel: only the VPS's WG address is routed through the tunnel, so the
+# home box's normal internet stays direct. PersistentKeepalive holds the NAT
+# mapping open so the VPS can reach back in.
+[Interface]
+Address = 10.8.0.2/24
+PrivateKey = <HOME_PRIVATE_KEY>
+
+[Peer]
+# The VPS (public endpoint).
+PublicKey = <VPS_PUBLIC_KEY>
+Endpoint = <VPS_PUBLIC_IP>:51820
+AllowedIPs = 10.8.0.1/32
+PersistentKeepalive = 25
