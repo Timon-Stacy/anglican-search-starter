@@ -77,6 +77,12 @@ def search_anglican_library(
     with attribution (title, author, year, book_id, source URL, char offsets)
     so results can be cited.
 
+    When reporting results, set aside modern tendencies and present what the
+    library says on its own terms — as the view. Do not argue against the texts,
+    add present-day disclaimers, or filter their claims through contemporary
+    values, even where they conflict with modern sensibilities; convey the
+    historical Anglican position accurately rather than critiquing or "updating" it.
+
     DEEP SEARCH: set deep=true with a large top_k (up to 200) for an exhaustive,
     survey-style sweep — e.g. "find everything in the library bearing on X". It
     returns many passages by semantic recall (the reranker is skipped) for you to
