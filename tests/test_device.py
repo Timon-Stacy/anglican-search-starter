@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from anglican_search.device import _choose, model_load_kwargs, supports_fp16
+from anglican_search.device import (
+    _choose, _rerank_fallback, model_load_kwargs, supports_fp16,
+)
 
 
 # --- autodetection (no forced device) -------------------------------------
@@ -95,3 +97,16 @@ def test_attn_env_override_applies_to_all(monkeypatch):
     monkeypatch.setenv("ANGLICAN_ATTN", "sdpa")
     assert model_load_kwargs("xpu") == {"attn_implementation": "sdpa"}
     assert model_load_kwargs("cuda") == {"attn_implementation": "sdpa"}
+
+
+# --- reranker device fallback (cross-encoders SIGBUS on Arc XPU) -----------
+def test_reranker_falls_back_to_cpu_on_xpu():
+    assert _rerank_fallback("xpu") == "cpu"
+
+
+def test_reranker_stays_on_cuda():
+    assert _rerank_fallback("cuda") == "cuda"
+
+
+def test_reranker_stays_on_cpu():
+    assert _rerank_fallback("cpu") == "cpu"

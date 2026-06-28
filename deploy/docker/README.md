@@ -190,6 +190,11 @@ docker compose ps
 - **The home app is never public.** It only listens inside the tunnel (plus a
   loopback publish on the home box for debugging). All public traffic goes through
   Caddy's TLS on the VPS.
+- **Reranker runs on CPU on Arc.** BERT/RoBERTa cross-encoders crash (SIGBUS) on
+  the Intel XPU, so the engine auto-runs the reranker on CPU there while the Qwen3
+  embedder stays on the GPU. The `.env` uses the light `ms-marco-MiniLM-L-6-v2`
+  reranker + a pool of 30 so CPU reranking stays fast. Override with
+  `ANGLICAN_RERANK_DEVICE` if a future driver fixes XPU cross-encoders.
 - **Latency:** every request takes one home↔VPS tunnel hop. Pick a VPS region near
   home; for search (not chatty) it's negligible next to the rerank compute.
 - **`slim_db.py` is not used here** — that's for a remote CPU-only serve box. The

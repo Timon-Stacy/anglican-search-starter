@@ -35,7 +35,7 @@ from .config import (
     RERANKER_MODEL,
     SQLITE_MMAP_BYTES,
 )
-from .device import model_load_kwargs, select_device, supports_fp16
+from .device import model_load_kwargs, rerank_device, select_device, supports_fp16
 
 
 @dataclass
@@ -156,7 +156,7 @@ class Searcher:
         if self._reranker is None:
             from sentence_transformers import CrossEncoder
 
-            device = select_device()  # cuda (Nvidia) | xpu (Intel Arc) | cpu
+            device = rerank_device()  # CPU on Arc (XPU cross-encoders SIGBUS); GPU on CUDA
             mkw = model_load_kwargs(device) or None
             try:
                 ce = CrossEncoder(self.reranker_name, device=device, model_kwargs=mkw)

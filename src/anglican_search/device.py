@@ -82,6 +82,23 @@ def supports_fp16(device: str) -> bool:
     return device in ("cuda", "xpu")
 
 
+def _rerank_fallback(embed_device: str) -> str:
+    """Pure rule: the cross-encoder reranker mirrors the embedder's device, except
+    on Intel XPU, where BERT/RoBERTa cross-encoders crash (SIGBUS) — fall back to
+    CPU there. The embedder stays on the GPU regardless."""
+    return "cpu" if embed_device == "xpu" else embed_device
+
+
+def rerank_device() -> str:
+    """Device for the cross-encoder reranker. ANGLICAN_RERANK_DEVICE forces it
+    (e.g. "xpu" to experiment, "cpu" to be safe); otherwise it mirrors the
+    embedder except on XPU, where it falls back to CPU."""
+    pref = os.environ.get("ANGLICAN_RERANK_DEVICE", "").strip()
+    if pref:
+        return select_device(pref)
+    return _rerank_fallback(select_device())
+
+
 def model_load_kwargs(device: str) -> dict:
     """Extra `from_pretrained` kwargs per backend (passed through SentenceTransformer
     / CrossEncoder as model_kwargs).
