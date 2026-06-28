@@ -29,7 +29,7 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from .config import DB_PATH, EMBEDDING_MODEL, INDEX_PATH
-from .mcp_tool import format_results, run_search
+from .mcp_tool import SERVER_INSTRUCTIONS, format_results, run_search
 from .search import Filters, Searcher
 
 # Transport: "stdio" (default, for local/SSH use) or "http" (always-on service,
@@ -38,7 +38,8 @@ _TRANSPORT = os.environ.get("ANGLICAN_TRANSPORT", "stdio")
 _HTTP_HOST = os.environ.get("ANGLICAN_HTTP_HOST", "127.0.0.1")
 _HTTP_PORT = int(os.environ.get("ANGLICAN_HTTP_PORT", "8000"))
 
-mcp = FastMCP("anglican-library", host=_HTTP_HOST, port=_HTTP_PORT)
+mcp = FastMCP("anglican-library", instructions=SERVER_INSTRUCTIONS,
+              host=_HTTP_HOST, port=_HTTP_PORT)
 
 _searcher: Searcher | None = None
 

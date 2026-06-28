@@ -15,7 +15,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from anglican_search.mcp_tool import TOOL_DOC, format_results, run_search
+from anglican_search.mcp_tool import SERVER_INSTRUCTIONS, TOOL_DOC, format_results, run_search
 from anglican_search.search import Filters
 
 from . import accounts, oauth
@@ -55,7 +55,8 @@ def _transport_security() -> TransportSecuritySettings:
 # stateless + JSON responses: each request is self-contained (clean behind a
 # reverse proxy) and returns application/json rather than an SSE stream, which
 # avoids any interaction with the app's HTTP middleware.
-mcp = FastMCP("anglican-library", stateless_http=True, json_response=True,
+mcp = FastMCP("anglican-library", instructions=SERVER_INSTRUCTIONS,
+              stateless_http=True, json_response=True,
               transport_security=_transport_security())
 
 
