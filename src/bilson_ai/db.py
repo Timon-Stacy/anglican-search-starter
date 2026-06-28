@@ -53,6 +53,39 @@ CREATE TABLE IF NOT EXISTS submissions (
     reviewed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sub_status ON submissions(status);
+
+-- OAuth 2.1 authorization server (for MCP clients that connect via the spec's
+-- auth flow, e.g. custom-connector UIs). Static API keys still work too.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+    client_id     TEXT PRIMARY KEY,        -- issued by dynamic client registration
+    client_name   TEXT,
+    redirect_uris TEXT NOT NULL,           -- JSON array of allowed redirect URIs
+    created_at    TEXT NOT NULL
+);
+
+-- Short-lived authorization codes (single-use; only the SHA-256 is stored).
+CREATE TABLE IF NOT EXISTS oauth_codes (
+    code_hash      TEXT PRIMARY KEY,
+    client_id      TEXT NOT NULL,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    redirect_uri   TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,          -- PKCE S256 challenge
+    scope          TEXT,
+    expires_at     INTEGER NOT NULL,       -- unix epoch
+    created_at     TEXT NOT NULL
+);
+
+-- Access/refresh tokens (only SHA-256 stored, like API keys).
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+    token_hash   TEXT PRIMARY KEY,
+    refresh_hash TEXT UNIQUE,
+    client_id    TEXT NOT NULL,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scope        TEXT,
+    expires_at   INTEGER NOT NULL,         -- unix epoch (access token)
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON oauth_tokens(user_id);
 """
 
 

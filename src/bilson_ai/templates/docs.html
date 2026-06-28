@@ -25,6 +25,18 @@ LLMs) and the <strong>REST API</strong> (for code).</p>
 <code>year_min</code> / <code>year_max</code>. Then just ask your assistant to
 &ldquo;search the Anglican library for …&rdquo;.</p>
 
+<h3>MCP via OAuth (custom connectors)</h3>
+<p>Some MCP clients use a one-click "custom connector" flow that doesn't take a
+pasted key. For those, just add <code>{{ mcp_url }}</code> as the connector URL —
+the client discovers the OAuth endpoints automatically, sends you here to
+<strong>log in and authorize</strong>, and is then issued a token bound to your
+account (metered against the same monthly quota). No key handling on your end.</p>
+<p class="muted">Under the hood: protected-resource and authorization-server
+metadata at <code>/.well-known/oauth-protected-resource</code> and
+<code>/.well-known/oauth-authorization-server</code>, dynamic client registration
+at <code>/oauth/register</code>, and an authorization-code + PKCE flow
+(<code>/oauth/authorize</code>, <code>/oauth/token</code>).</p>
+
 <h3>REST API</h3>
 <p>Authenticate with your API key as a bearer token (or <code>X-API-Key</code> header).</p>
 

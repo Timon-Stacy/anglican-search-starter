@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Authorize — {{ brand }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <h2>Authorize access</h2>
+  <p><strong>{{ client['client_name'] or "An application" }}</strong> is asking to
+  connect to your {{ brand }} account and search the library on your behalf.</p>
+  <p class="muted">It will use your monthly request quota. You can revoke access any
+  time by signing out or contacting the admin.</p>
+  <form method="post" action="/oauth/authorize">
+    <input type="hidden" name="client_id" value="{{ params['client_id'] }}">
+    <input type="hidden" name="redirect_uri" value="{{ params['redirect_uri'] }}">
+    <input type="hidden" name="code_challenge" value="{{ params['code_challenge'] }}">
+    <input type="hidden" name="scope" value="{{ params['scope'] }}">
+    <input type="hidden" name="state" value="{{ params['state'] }}">
+    <div style="display:flex; gap:10px; margin-top:14px">
+      <button class="btn" type="submit" name="decision" value="allow">Allow</button>
+      <button class="btn small" type="submit" name="decision" value="deny">Deny</button>
+    </div>
+  </form>
+  <p class="muted" style="margin-top:14px">Signed in as {{ user['email'] }}.
+  <a href="/logout">Not you?</a></p>
+</div>
+{% endblock %}

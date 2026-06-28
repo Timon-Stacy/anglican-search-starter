@@ -23,7 +23,9 @@ from anglican_search.batch import BatchedSearch
 from anglican_search.config import DEEP_MAX_TOP_K, MAX_TOP_K
 from anglican_search.search import Filters, get_searcher
 
-from . import accounts, mcp_app as mcpmod, submissions
+from urllib.parse import quote, urlencode
+
+from . import accounts, mcp_app as mcpmod, oauth, submissions
 from .config import (BRAND, DEFAULT_MONTHLY_LIMIT, HOST, PORT, PUBLIC_URL,
                      SECRET_KEY, TAGLINE, ADMIN_EMAIL)
 from .db import init_db
@@ -122,6 +124,16 @@ def _api_key_from(request: Request) -> str | None:
     return request.headers.get("x-api-key")
 
 
+def _base_url(request: Request) -> str:
+    """Public origin (no trailing slash) for building OAuth/MCP URLs."""
+    return PUBLIC_URL or str(request.base_url).rstrip("/")
+
+
+def _safe_next(nxt: str) -> str:
+    """Only allow local redirect targets (prevents open-redirect)."""
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else "/dashboard"
+
+
 # --- marketing / static pages ---------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -166,17 +178,18 @@ def signup(request: Request, email: str = Form(...), password: str = Form(...)):
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_form(request: Request):
-    return page(request, "login.html")
+def login_form(request: Request, next: str = ""):
+    return page(request, "login.html", next=next)
 
 
 @app.post("/login")
-def login(request: Request, email: str = Form(...), password: str = Form(...)):
+def login(request: Request, email: str = Form(...), password: str = Form(...),
+          next: str = Form("")):
     user = accounts.authenticate(email, password)
     if not user:
-        return page(request, "login.html", error="Invalid email or password.")
+        return page(request, "login.html", error="Invalid email or password.", next=next)
     request.session["user_id"] = user["id"]
-    return RedirectResponse("/dashboard", status_code=303)
+    return RedirectResponse(_safe_next(next), status_code=303)
 
 
 @app.get("/logout")
@@ -390,6 +403,96 @@ def admin_manual_import(request: Request, sub_id: int,
     submissions.set_status(sub_id, "approved")
     importer.enqueue(sub_id, text=text)
     return RedirectResponse("/admin/queue", status_code=303)
+
+
+# --- OAuth 2.1 for MCP clients (custom-connector UIs) ----------------------
+# Discovery, dynamic client registration, and the authorization-code+PKCE flow
+# so MCP clients that can't send a pre-shared key authorize against a Bilson
+# account instead. Static API keys still work (see mcp_app.MCPAuthMiddleware).
+@app.get("/.well-known/oauth-protected-resource")
+@app.get("/.well-known/oauth-protected-resource/mcp")
+def oauth_protected_resource(request: Request):
+    return JSONResponse(oauth.protected_resource_metadata(_base_url(request)))
+
+
+@app.get("/.well-known/oauth-authorization-server")
+def oauth_authorization_server(request: Request):
+    return JSONResponse(oauth.authorization_server_metadata(_base_url(request)))
+
+
+@app.post("/oauth/register")
+async def oauth_register(request: Request):
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    redirect_uris = body.get("redirect_uris") or []
+    if not isinstance(redirect_uris, list) or not redirect_uris:
+        return JSONResponse({"error": "invalid_redirect_uri"}, status_code=400)
+    client_id = oauth.register_client(body.get("client_name", ""), redirect_uris)
+    return JSONResponse({
+        "client_id": client_id,
+        "client_id_issued_at": int(time.time()),
+        "redirect_uris": redirect_uris,
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+    }, status_code=201)
+
+
+@app.get("/oauth/authorize", response_class=HTMLResponse)
+def oauth_authorize(request: Request, response_type: str = "", client_id: str = "",
+                    redirect_uri: str = "", code_challenge: str = "",
+                    code_challenge_method: str = "", scope: str = "", state: str = ""):
+    if response_type != "code" or code_challenge_method != "S256" or not code_challenge:
+        return PlainTextResponse("unsupported_response_type or missing S256 PKCE", status_code=400)
+    if not oauth.client_allows_redirect(client_id, redirect_uri):
+        return PlainTextResponse("invalid client_id or redirect_uri", status_code=400)
+    if not current_user(request):
+        # Log in, then come right back to this same authorize URL.
+        nxt = request.url.path + ("?" + request.url.query if request.url.query else "")
+        return RedirectResponse(f"/login?next={quote(nxt, safe='')}", status_code=303)
+    return page(request, "consent.html", client=oauth.get_client(client_id),
+                params={"client_id": client_id, "redirect_uri": redirect_uri,
+                        "code_challenge": code_challenge, "scope": scope, "state": state})
+
+
+@app.post("/oauth/authorize")
+def oauth_authorize_decide(request: Request, client_id: str = Form(...),
+                           redirect_uri: str = Form(...), code_challenge: str = Form(...),
+                           decision: str = Form(...), scope: str = Form(""),
+                           state: str = Form("")):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if not oauth.client_allows_redirect(client_id, redirect_uri):
+        return PlainTextResponse("invalid client_id or redirect_uri", status_code=400)
+    if decision != "allow":
+        q = urlencode({"error": "access_denied", **({"state": state} if state else {})})
+        return RedirectResponse(f"{redirect_uri}?{q}", status_code=303)
+    code = oauth.create_code(client_id, user["id"], redirect_uri, code_challenge, scope)
+    q = urlencode({"code": code, **({"state": state} if state else {})})
+    return RedirectResponse(f"{redirect_uri}?{q}", status_code=303)
+
+
+@app.post("/oauth/token")
+async def oauth_token(request: Request):
+    form = await request.form()
+    grant = form.get("grant_type")
+    try:
+        if grant == "authorization_code":
+            tok = oauth.exchange_code(
+                form.get("code", ""), form.get("client_id", ""),
+                form.get("redirect_uri", ""), form.get("code_verifier", ""))
+        elif grant == "refresh_token":
+            tok = oauth.refresh(form.get("refresh_token", ""), form.get("client_id", ""))
+        else:
+            return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
+    except oauth.OAuthError as e:
+        return JSONResponse({"error": e.code, "error_description": e.desc}, status_code=400)
+    resp = JSONResponse(tok)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 # --- REST API --------------------------------------------------------------
