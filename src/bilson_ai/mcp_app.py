@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import contextvars
 import json
+import os
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from anglican_search.mcp_tool import TOOL_DOC, format_results, run_search
 from anglican_search.search import Filters
@@ -32,10 +34,29 @@ def configure(searcher, batcher) -> None:
     _engine["batcher"] = batcher
 
 
+def _transport_security() -> TransportSecuritySettings:
+    """FastMCP's DNS-rebinding protection allowlists the Host/Origin and otherwise
+    returns 421. It's meant for local, unauthenticated MCP servers; it rejects the
+    proxied Host (e.g. anglicanlibrary.com) behind any reverse proxy.
+
+    This server is remote, TLS-fronted, and every /mcp call is gated by an API key
+    or OAuth token, so DNS rebinding can't forge auth — disable the check by default.
+    For strict mode, set ANGLICAN_MCP_ALLOWED_HOSTS to a comma-separated allowlist
+    (e.g. "anglicanlibrary.com"); origins use the same list.
+    """
+    allowed = [h.strip() for h in os.environ.get("ANGLICAN_MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    if allowed:
+        origins = [f"https://{h}" for h in allowed]
+        return TransportSecuritySettings(
+            enable_dns_rebinding_protection=True, allowed_hosts=allowed, allowed_origins=origins)
+    return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+
+
 # stateless + JSON responses: each request is self-contained (clean behind a
 # reverse proxy) and returns application/json rather than an SSE stream, which
 # avoids any interaction with the app's HTTP middleware.
-mcp = FastMCP("anglican-library", stateless_http=True, json_response=True)
+mcp = FastMCP("anglican-library", stateless_http=True, json_response=True,
+              transport_security=_transport_security())
 
 
 @mcp.tool()
