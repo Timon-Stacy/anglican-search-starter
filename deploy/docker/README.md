@@ -5,11 +5,16 @@ your **home server**. A cheap **cloud VPS** is a thin TLS edge that reverse-prox
 HTTPS to the home app over a **WireGuard** tunnel. The home box dials out, so it
 needs no public IP and no port-forwarding.
 
+WireGuard runs on the **host** (a `wg-quick` systemd service) on both boxes, not in
+a container — so the app keeps normal internet (model cache, book imports) and the
+tunnel is a simple, debuggable service. Docker runs only the app (home) and Caddy
+(VPS).
+
 ```
-Internet ──443──▶  VPS (public IP, domain)            Home server (Intel Arc A380)
-                   caddy: TLS + reverse_proxy         bilson: engine + /mcp + /v1 + website
-                   wireguard: 51820/udp  ◀── tunnel ──  wireguard (dials out)
-                          │                            listens on 10.8.0.2:8001
+Internet ──443──▶  VPS host (public IP, domain)        Home host (Intel Arc A380)
+                   caddy [docker, net=host]            bilson [docker, ports 8001]
+                   wg0 = 10.8.0.1 (host)  ◀── tunnel ── wg0 = 10.8.0.2 (host, dials out)
+                          │                            app published at host:8001
                           └─ proxies 443 ─▶ 10.8.0.2:8001 over wg0
 ```
 
@@ -18,8 +23,8 @@ Layout:
 | Path | Runs on | What it is |
 |---|---|---|
 | `home/Dockerfile.serve` | home | Arc (XPU) image: app + engine, torch from Intel's IPEX base |
-| `home/docker-compose.yml` | home | `bilson` (Arc GPU) + `wireguard` (dials the VPS) |
-| `vps/docker-compose.yml` | VPS | `caddy` (TLS) + `wireguard` (tunnel endpoint) |
+| `home/docker-compose.yml` | home | `bilson` (Arc GPU), publishes `:8001`; WireGuard is on the host |
+| `vps/docker-compose.yml` | VPS | `caddy` (TLS, `network_mode: host`); WireGuard is on the host |
 | `vps/Caddyfile` | VPS | HTTPS + `reverse_proxy 10.8.0.2:8001` |
 
 ---
@@ -61,34 +66,48 @@ cp library-clean.db deploy/docker/home/data/library.db
 
 (`index.faiss` doesn't exist yet — Step 4 builds it.)
 
-## Step 2 — WireGuard keys + configs
+## Step 2 — WireGuard on the host (both boxes)
 
-On **each** box generate a keypair:
+WireGuard runs as a host `wg-quick` service, not in Docker. On **each** box:
 
 ```bash
-wg genkey | tee privatekey | wg pubkey > publickey   # do this on home AND on the VPS
+sudo apt update && sudo apt install -y wireguard
+wg genkey | tee privatekey | wg pubkey > publickey
+echo "PRIVATE: $(cat privatekey)"; echo "PUBLIC:  $(cat publickey)"
 ```
 
-Then fill the two configs (swap in the keys + the VPS public IP):
+Create `/etc/wireguard/wg0.conf` on each box (templates in
+`vps/wireguard/wg0.conf.example` and `home/wireguard/wg0.conf.example`). Each box
+uses its own private key + the *other* box's public key:
 
-- `vps/wireguard/wg0.conf`  — from `wg0.conf.example`; needs the VPS private key
-  and the **home** public key.
-- `home/wireguard/wg0.conf` — from `wg0.conf.example`; needs the home private key,
-  the **VPS** public key, and `Endpoint = <VPS_PUBLIC_IP>:51820`.
+- **VPS** `/etc/wireguard/wg0.conf`: VPS private key, home **public** key, `Address
+  = 10.8.0.1/24`, `ListenPort = 51820`.
+- **Home** `/etc/wireguard/wg0.conf`: home private key, VPS **public** key,
+  `Address = 10.8.0.2/24`, `Endpoint = <VPS_PUBLIC_IP>:51820`,
+  `PersistentKeepalive = 25`.
 
-The tunnel subnet is `10.8.0.0/24` (VPS = `.1`, home = `.2`). If you change it,
-update `Caddyfile` (`reverse_proxy 10.8.0.2:8001`) to match.
+Bring the tunnel up on both (VPS first):
 
-## Step 3 — Bring up the VPS edge
+```bash
+sudo systemctl enable --now wg-quick@wg0
+sudo wg show           # both ends should list the peer; a recent handshake = connected
+```
+
+The subnet is `10.8.0.0/24` (VPS = `.1`, home = `.2`). If you change it, update
+`vps/Caddyfile` (`reverse_proxy 10.8.0.2:8001`) to match.
+
+## Step 3 — Bring up the VPS edge (Caddy)
 
 ```bash
 cd deploy/docker/vps
 cp .env.example .env && nano .env        # set DOMAIN + ACME_EMAIL
-docker compose up -d
-docker compose logs -f wireguard          # confirm the interface comes up
+sudo docker compose up -d
+sudo docker compose logs -f caddy        # watch it obtain the Let's Encrypt cert
 ```
 
-Caddy won't get a cert until the home app is reachable, which is fine for now.
+Caddy (running with `network_mode: host`) reaches the home app at `10.8.0.2:8001`
+over the host tunnel. It can't fully proxy until the home app is up (Step 5), but
+it will still get its cert once DNS + ports 80/443 are reachable.
 
 ## Step 4 — Build the image, verify the GPU, build the index (home)
 

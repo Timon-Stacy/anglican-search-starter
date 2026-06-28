@@ -1,34 +1,12 @@
-# HOME box (Intel Arc A380). Runs the whole app on the GPU and dials OUT to the
-# VPS over WireGuard, so the home box needs no public IP and no port-forwarding.
+# HOME box (Intel Arc A380). Runs the whole app on the GPU. WireGuard runs on the
+# HOST (wg-quick, set up once — see deploy/docker/README.md), not in a container,
+# so the app has normal internet (model cache refresh, book imports) and the
+# tunnel is a simple, reliable systemd service.
 #
-# Two containers:
-#   wireguard  - the tunnel to the VPS (this box is the dialing peer).
-#   bilson     - the app; shares the wireguard container's network namespace, so
-#                from the VPS it's reachable at the home WG IP (e.g. 10.8.0.2:8001).
-#
-# The app is intentionally NOT published to the host's public interfaces — the
-# only way in is through the encrypted tunnel.
+# The app publishes 8001 on the host. The host's wg0 interface is 10.8.0.2, so the
+# VPS reaches the app over the tunnel at 10.8.0.2:8001. Home is behind NAT, so 8001
+# is not exposed to the public internet — only the LAN and the tunnel can reach it.
 services:
-  wireguard:
-    image: lscr.io/linuxserver/wireguard:latest
-    container_name: anglican-wg
-    cap_add: [NET_ADMIN, SYS_MODULE]
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-Etc/UTC}
-    volumes:
-      # Put your filled-in wg0.conf here (see wireguard/wg0.conf.example).
-      - ./wireguard:/config/wg_confs
-      - /lib/modules:/lib/modules:ro
-    # Expose 8001 on the host's LOOPBACK only, for local health checks/debug.
-    # (The VPS does not use this; it reaches the app over the tunnel.)
-    ports:
-      - "127.0.0.1:8001:8001"
-    restart: unless-stopped
-
   bilson:
     build:
       # Build context is the repo root so the image can COPY src/ and scripts/.
@@ -38,14 +16,12 @@ services:
         IPEX_TAG: ${IPEX_TAG:-2.7.10-xpu}
     image: anglican-bilson-xpu:latest
     container_name: anglican-bilson
-    # Run inside the wireguard netns so the app is reachable over the tunnel.
-    network_mode: "service:wireguard"
-    depends_on: [wireguard]
-    # Intel Arc GPU passthrough. The container runs as root, which can access
-    # /dev/dri without a render-group membership.
+    # Intel Arc GPU passthrough. Runs as root, so it can access /dev/dri.
     devices:
       - /dev/dri:/dev/dri
     env_file: .env
+    ports:
+      - "8001:8001"   # reachable at the host's WireGuard IP (10.8.0.2) for the VPS
     volumes:
       # library.db (the repaired copy), index.faiss, and accounts.db live here.
       - ./data:/data
@@ -60,10 +36,9 @@ services:
       start_period: 120s   # model warmup on first boot
     restart: unless-stopped
 
-  # One-off GPU tasks (verify the Arc, build the index). Same image as `bilson`
-  # but on the default network — NOT tied to the wireguard tunnel — so it runs
-  # before any tunnel exists. It's in the "tools" profile so `docker compose up`
-  # never starts it; invoke it explicitly with `docker compose run --rm engine`.
+  # One-off GPU tasks (verify the Arc, build the index). Same image as `bilson`.
+  # In the "tools" profile so `docker compose up` never starts it; invoke with
+  # `docker compose run --rm engine <cmd>`.
   engine:
     image: anglican-bilson-xpu:latest
     profiles: ["tools"]
@@ -73,8 +48,6 @@ services:
     volumes:
       - ./data:/data
       - hf_cache:/opt/hf-cache
-    # No command here — pass one to `docker compose run`, e.g.
-    #   docker compose run --rm engine python scripts/check_env.py
 
 volumes:
   hf_cache:
