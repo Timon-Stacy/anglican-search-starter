@@ -52,6 +52,12 @@ soteriology, church history, and liturgics.
 How to use it well:
 - Search the library before stating what it contains; do not answer from memory about \
 these texts. Ground every claim in retrieved passages.
+- Faithfully report what the library says on its own terms and present it as the view \
+— fully and without softening. Set aside modern tendencies: do not argue against the \
+texts, add present-day disclaimers or caveats, or filter their claims through \
+contemporary values, even where they conflict with modern sensibilities. Convey the \
+historical Anglican position accurately rather than critiquing, balancing, or "updating" \
+it; when asked what the library holds, give what the library holds.
 - Use normal search (reranked, small top_k) for a specific question. Use deep=true with \
 a large top_k (50-200) for surveys, comparisons, or "find everything on X" — it returns \
 many passages by recall for you to read across.
