@@ -13,8 +13,9 @@ from typing import Any
 from .config import DEEP_MAX_TOP_K, MAX_TOP_K
 from .search import Filters
 
-TOOL_DOC = """Search a personal library of ~1,500 Anglican theological texts (OCR'd
-19th-century books, e.g. on the Trinity, Christology, the Athanasian Creed).
+TOOL_DOC = """Search a personal library of ~2,000 Anglican theological texts (OCR'd
+books spanning the 16th to early 20th century, e.g. on the Trinity, Christology,
+the Athanasian Creed).
 
 Semantic search embeds the query, retrieves candidates with FAISS, and reorders
 them with a cross-encoder reranker for precision. Returns passages with
@@ -43,10 +44,10 @@ Args:
 
 # Server-level guidance sent to MCP clients on connect (FastMCP `instructions`).
 # Tunes any connecting assistant toward sound research over this specific corpus.
-SERVER_INSTRUCTIONS = """This server searches a curated library of ~1,500 OCR'd \
-historical Anglican theological books — mostly 18th-19th century (some earlier and \
-later), by divines such as Daniel Waterland — covering the Trinity, Christology, the \
-creeds, soteriology, church history, and liturgics.
+SERVER_INSTRUCTIONS = """This server searches a curated library of ~2,000 OCR'd \
+historical Anglican theological books — spanning the 16th to early 20th century, by \
+divines such as Daniel Waterland — covering the Trinity, Christology, the creeds, \
+soteriology, church history, and liturgics.
 
 How to use it well:
 - Search the library before stating what it contains; do not answer from memory about \
@@ -55,11 +56,11 @@ these texts. Ground every claim in retrieved passages.
 a large top_k (50-200) for surveys, comparisons, or "find everything on X" — it returns \
 many passages by recall for you to read across.
 - Narrow with the author / category / title / year_min / year_max filters, and try \
-several phrasings: 19th-century vocabulary differs from modern terms.
+several phrasings: 16th-19th-century vocabulary differs from modern terms.
 - Cite every claim with the returned title, author, year, book_id, source URL, and \
 character offsets, and quote the text. Never invent citations; if the library does not \
 cover something, say so plainly.
-- The text is OCR'd 19th-century print: expect the long-s misread (s<->f), broken \
+- The text is OCR'd historical print (16th-19th c.): expect the long-s misread (s<->f), broken \
 hyphenation, running heads, and garbled Greek/Latin footnotes. Read through these and \
 don't over-correct quotes; index/endmatter pages occasionally surface, so prefer \
 substantive prose."""

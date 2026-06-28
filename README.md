@@ -1,7 +1,8 @@
 # Anglican Library Search
 
-Local semantic + keyword search over a personal library of ~1,500 OCR'd
-19th-century Anglican theological texts, exposed to LLM clients as an MCP tool.
+Local semantic + keyword search over a personal library of ~2,000 OCR'd
+Anglican theological texts spanning the 16th to early 20th century, exposed to
+LLM clients as an MCP tool.
 
 The pipeline cleans noisy OCR (long-s correction, de-hyphenation, boilerplate
 and running-head removal), chunks the text, embeds it into a FAISS index,

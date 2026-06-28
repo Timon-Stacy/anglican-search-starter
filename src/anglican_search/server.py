@@ -68,8 +68,9 @@ def search_anglican_library(
     year_max: int | None = None,
     title: str | None = None,
 ) -> str:
-    """Search a personal library of ~1,500 Anglican theological texts (OCR'd
-    19th-century books, e.g. on the Trinity, Christology, the Athanasian Creed).
+    """Search a personal library of ~2,000 Anglican theological texts (OCR'd
+    books spanning the 16th to early 20th century, e.g. on the Trinity,
+    Christology, the Athanasian Creed).
 
     Semantic search embeds the query, retrieves candidates with FAISS, and
     reorders them with a cross-encoder reranker for precision. Returns passages

@@ -3,7 +3,7 @@
 {% block content %}
 <h2>Search the library</h2>
 <form method="get" action="/search" class="search-form">
-  <input name="q" value="{{ q }}" placeholder="Search ~1,500 Anglican texts by meaning or keyword…" autofocus>
+  <input name="q" value="{{ q }}" placeholder="Search ~2,000 Anglican texts by meaning or keyword…" autofocus>
   <select name="mode">
     <option value="semantic" {% if mode == 'semantic' %}selected{% endif %}>Semantic</option>
     <option value="literal" {% if mode == 'literal' %}selected{% endif %}>Literal</option>
