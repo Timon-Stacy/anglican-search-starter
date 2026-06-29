@@ -33,6 +33,10 @@ web = [
 dev = [
     "pytest>=8",
 ]
+# Corpus ingest helpers (e.g. the Schaff Church Fathers from CCEL ThML).
+ingest = [
+    "lxml>=5.0",
+]
 
 [build-system]
 requires = ["hatchling"]

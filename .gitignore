@@ -20,6 +20,9 @@ mcp_server.err
 hf-cache/
 models/
 
+# Downloaded source corpora (CCEL ThML, etc.) — fetched on demand, not vendored
+ccel_cache/
+
 # Editor / OS
 .vscode/
 .idea/
